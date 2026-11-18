@@ -2896,7 +2896,7 @@ dependencies = [
 
 [[package]]
 name = "xserve"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clap",
  "flate2",
@@ -2915,7 +2915,7 @@ dependencies = [
 
 [[package]]
 name = "xserved"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "prost",
  "serde",

@@ -93,6 +93,28 @@ pub async fn image_remove(image_spec: &str) -> Result<(), Box<dyn std::error::Er
         return Err(format!("Image {}:{} not found in local index", repo, tag).into());
     }
 
+    // --- TAMBAHAN 1: Cek apakah rootfs masih dipakai container ---
+    let sanitized_name = format!("{}_{}", repo.replace('/', "_"), tag);
+    let image_dir_path = format!("{}/{}", IMAGE_STORE_PATH, sanitized_name);
+    // Cek di /proc/mounts apakah rootfs image masih ter-mount sebagai lowerdir OverlayFS
+    let rootfs_target = format!("{}/rootfs", image_dir_path);
+    if let Ok(mounts) = fs::read_to_string("/proc/mounts").await {
+        if mounts.contains(&rootfs_target) {
+            return Err(format!(
+                "Cannot remove image {}:{}: rootfs is currently mounted by an active container",
+                repo, tag
+            )
+            .into());
+        }
+    }
+
+    // --- TAMBAHAN 2: Hapus direktori image beserta rootfs di dalamnya ---
+    if fs::try_exists(&image_dir_path).await.unwrap_or(false) {
+        fs::remove_dir_all(&image_dir_path).await?;
+        println!("Removed extracted rootfs at {}", image_dir_path);
+    }
+    
+
     let new_data = serde_json::to_string_pretty(&remaining_images)?;
     fs::write(&index_path, new_data).await?;
 
@@ -264,11 +286,15 @@ async fn vendor_dockerhub(image: &str) -> Result<(), Box<dyn std::error::Error +
             .iter()
             .find(|m| {
                 m.pointer("/platform/os").and_then(|v| v.as_str()) == Some("linux")
-                    && m.pointer("/platform/architecture").and_then(|v| v.as_str()) == Some(target_arch)
+                    && m.pointer("/platform/architecture").and_then(|v| v.as_str())
+                        == Some(target_arch)
             })
             .and_then(|m| m.get("digest"))
             .and_then(|d| d.as_str())
-            .ok_or(format!("Manifest untuk arsitektur linux/{} tidak ditemukan", target_arch))?;
+            .ok_or(format!(
+                "Manifest untuk arsitektur linux/{} tidak ditemukan",
+                target_arch
+            ))?;
 
         let arch_manifest_url = format!(
             "https://registry-1.docker.io/v2/{}/manifests/{}",

@@ -6,7 +6,7 @@ pub mod runtime {
     pub mod internal;
     pub mod logging;
     pub mod network;
-    pub mod socket;
+    pub mod utils;
     pub mod stream;
 }
 pub mod grpcutils;

@@ -1,6 +1,5 @@
 use std::{
-    path::{Path, PathBuf},
-    time::Duration,
+    path::{Path, PathBuf}, process::Stdio, time::Duration,
 };
 
 use serde::Deserialize;
@@ -8,14 +7,13 @@ use serde_json::{Value, json};
 use tokio::{fs, process::Command, time::sleep};
 
 use crate::{
-    internal_proto::NetworkConfig,
-    runtime::{init::YOUKI_ROOT, logging::LogsCollector, network},
+    internal_proto::NetworkConfig, runtime::{logging::LogsCollector, network, utils::{BUNDLE_PATH, IMAGES_PATH, LOGS_PATH, YOUKI_ROOT}},
 };
 
 // GLOBAL PATH
-const IMAGE_STORE_PATH: &str = "/var/lib/xserved/images";
-const BUNDLE_PATH: &str = "/var/lib/xserved/bundles";
-const LOGS_PATH: &str = "/var/log/xserved";
+// const IMAGE_STORE_PATH: &str = "/var/lib/xserved/images";
+// const BUNDLE_PATH: &str = "/var/lib/xserved/bundles";
+// const LOGS_PATH: &str = "/var/log/xserved";
 
 // youki state
 #[derive(Debug, Deserialize)]
@@ -163,7 +161,7 @@ async fn resolve_image(image: &str) -> Result<PathBuf, Box<dyn std::error::Error
         format!("library/{}", repo)
     };
 
-    let index_path = Path::new(IMAGE_STORE_PATH).join("index.json");
+    let index_path = Path::new(IMAGES_PATH).join("index.json");
     let content = fs::read_to_string(&index_path)
         .await
         .map_err(|_| "Image not found or you not image pull before (index.json not found): try: xserve image pull frist")?;
@@ -182,7 +180,7 @@ async fn resolve_image(image: &str) -> Result<PathBuf, Box<dyn std::error::Error
     }
 
     let safe_dir_name = format!("{}_{}", scope_image.replace('/', "_"), tag);
-    let image_rootfs = Path::new(IMAGE_STORE_PATH)
+    let image_rootfs = Path::new(IMAGES_PATH)
         .join(safe_dir_name)
         .join("rootfs");
 
@@ -359,7 +357,7 @@ pub async fn state(
     let state_output = state.output().await?;
     if state_output.status.success() {
         let state_json = String::from_utf8_lossy(&state_output.stdout);
-        log.error(format!("Container status: {}", state_json));
+        log.info(format!("Container status: {}", state_json));
     } else {
         let state_err = String::from_utf8_lossy(&state_output.stderr);
         log.error(format!(
@@ -389,7 +387,10 @@ pub async fn container_run(
         .arg("--detach")
         .arg("--bundle")
         .arg(bundle)
-        .arg(container_id);
+        .arg(container_id)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
 
     let output = run.output().await?;
     if output.status.success() {

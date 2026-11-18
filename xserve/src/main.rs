@@ -65,39 +65,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // daemon command
         Commands::DaemonStart {} => {
             if let Ok(pid_str) = fs::read_to_string(PID_FILE) {
-                if std::path::Path::new(&format!("/proc/{}", pid_str.trim())).exists() {
-                    println!(
-                        "Daemon xserved is already running at (PID: {})",
-                        pid_str.trim()
-                    );
+                let pid = pid_str.trim();
+                if std::path::Path::new(&format!("/proc/{}", pid)).exists() {
+                    println!("Daemon xserved is already running (PID: {})", pid);
                     return Ok(());
                 }
             }
 
-            match Command::new("xserved")
+            if let Err(e) = Command::new("xserved")
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
                 .spawn()
             {
-                Ok(child) => {
-                    if let Some(pid) = child.id() {
-                        if let Err(e) = fs::write(PID_FILE, pid.to_string()) {
-                            eprintln!(
-                                "Daemon is running (PID: {}), but failed to save PID file: {}",
-                                pid, e
-                            );
-                        } else {
-                            println!(
-                                "Daemon xserved has been succes to running at (PID: {})",
-                                pid
-                            );
-                        }
+                eprintln!("Failed to starting daemon\nError: {}", e);
+                return Ok(());
+            }
+            for _ in 0..30 {
+                if let Ok(pid_str) = fs::read_to_string(PID_FILE) {
+                    let pid = pid_str.trim();
+                    if std::path::Path::new(&format!("/proc/{}", pid)).exists() {
+                        println!(
+                            "Daemon xserved sucess to run at (PID: {})",
+                            pid
+                        );
+                        return Ok(());
                     }
                 }
-                Err(e) => {
-                    eprintln!("Failed to starting daemon\nError: {}", e);
-                }
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             }
+            println!("Daemon procces has been started.");
             return Ok(());
         }
         Commands::DaemonStop {} => {
