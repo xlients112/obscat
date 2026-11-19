@@ -39,23 +39,32 @@ curl -fsSL https://raw.githubusercontent.com/xlients112/obscat/main/install.sh |
 
 Here are a few basic commands to get you up and running:
 
+### Starting daemon engine
+```bash
+obscat daemon-start
+```
+or manualy (auto connect)
+```bash
+obscatd &
+```
+
 ### Verify Installation
 ```bash
-xserve --version
+obscat --version
 ```
 
 ### Pull an Image
 ```bash
-xserve pull alpine:latest
+obscat pull alpine:latest
 ```
 
 ### Run a Container
 ```bash
-xserve create --id container_id
+obscat create --id container_id
 ```
 ### Check your container state.
 ```bash
-xserve state container_id
+obscat state container_id
 ```
 ---
 
@@ -66,7 +75,7 @@ A deployment functions as a deployment space folder on the host, it creates and 
 ***Create your deployment folder:***
 use this command, to automatic create deployment folder and `manifest.toml` example template.
 ```bash
-xserve init my-deployment
+obscat init my-deployment
 ```
 ***add your source application:***
 copy your folder source application inside service folder `my-deployment/service`
