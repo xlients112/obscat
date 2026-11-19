@@ -8,7 +8,26 @@ service ContainerService {
     rpc State (StateRequest) returns (StateResponse) {}
     rpc Run (RunRequest) returns (RunResponse) {}
     rpc Kill (KillRequest) returns (KillResponse) {}
-    // rpc Logs (LogsRequest) returns (stream LogsResponse);
+    rpc Deploy (DeployRequest) returns (DeployResponse);
+    rpc Undeploy (UndeployRequest) returns (UndeployResponse);
+}
+
+message DeployRequest {
+  string package_path = 1;
+}
+
+message DeployResponse {
+  bool sucess = 1;
+  string message = 2;
+}
+
+message UndeployRequest {
+  string package_path = 1;
+}
+
+message UndeployResponse {
+  bool sucess = 1;
+  string message = 2;
 }
 
 message SpecResponse {

@@ -1,19 +1,15 @@
 pub mod internal_proto {
     tonic::include_proto!("xserve");
 }
-pub mod runtime {
-    pub mod init;
-    pub mod internal;
-    pub mod logging;
-    pub mod network;
-    pub mod utils;
-    pub mod stream;
-}
-pub mod grpcutils;
 
+pub mod deployment;
+pub mod grpcutils;
+pub mod runtime;
+// pub mod mod;
+
+use crate::deployment::deployment::{deploy, undeploy};
 use crate::internal_proto::{
-    CreateRequest, CreateResponse, DeleteRequest, DeleteResponse, KillRequest, KillResponse,
-    RunRequest, RunResponse, StateRequest, StateResponse,
+    CreateRequest, CreateResponse, DeleteRequest, DeleteResponse, DeployRequest, DeployResponse, KillRequest, KillResponse, RunRequest, RunResponse, StateRequest, StateResponse, UndeployRequest, UndeployResponse,
 };
 use crate::runtime::logging::LogsCollector;
 use crate::runtime::{init, internal, network};
@@ -24,6 +20,56 @@ use tonic::{Request, Response, Status, transport::Server};
 pub struct XserveService {}
 #[tonic::async_trait]
 impl ContainerService for XserveService {
+    // deploy
+    async fn deploy(
+        &self,
+        request: Request<DeployRequest>,
+    ) -> Result<Response<DeployResponse>, Status> {
+        let req = grpcutils::unpack(request);
+        let package_path = req.package_path.clone();
+        // let net = req.network.as_ref().cloned().unwrap_or_default();
+        let mut log = LogsCollector::new();
+
+        let log = tokio::spawn(async move {
+            if let Err(e) = deploy(&package_path, &mut log).await {
+                log.info(format!("failed to run runtime deploy task\nError: {}", e));
+            }
+            log
+        })
+        .await
+        .unwrap_or_default();
+
+        grpcutils::pack(DeployResponse {
+            sucess: true,
+            message: log.flush(),
+        })
+    }
+
+       // undeploy
+    async fn undeploy(
+        &self,
+        request: Request<UndeployRequest>,
+    ) -> Result<Response<UndeployResponse>, Status> {
+        let req = grpcutils::unpack(request);
+        let package_path = req.package_path.clone();
+        // let net = req.network.as_ref().cloned().unwrap_or_default();
+        let mut log = LogsCollector::new();
+
+        let log = tokio::spawn(async move {
+            if let Err(e) = undeploy(&package_path, &mut log).await {
+                log.info(format!("failed to run runtime undeploy task\nError: {}", e));
+            }
+            log
+        })
+        .await
+        .unwrap_or_default();
+
+        grpcutils::pack(UndeployResponse {
+            sucess: true,
+            message: log.flush(),
+        })
+    }
+
     // create container
     async fn create(
         &self,

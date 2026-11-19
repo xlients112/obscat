@@ -3,6 +3,7 @@ pub mod cli {
     pub mod cummon;
 }
 pub mod daemon {
+    pub mod deploy;
     pub mod image;
     pub mod internal;
 }
@@ -20,6 +21,7 @@ use tonic;
 
 use crate::cli::args::{Cli, Commands, ImageSubcommands};
 use crate::cli::cummon;
+use crate::daemon::deploy::{daemon_deploy, daemon_undeploy};
 use crate::daemon::image;
 use crate::daemon::internal;
 use crate::xserve_proto::container_service_client::ContainerServiceClient;
@@ -61,6 +63,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 eprintln!("failed to run task command version\nError: {}", e);
             }
         }
+        Commands::Init { folder } => {
+            if let Err(e) = cummon::init_deployment(&folder).await {
+                eprintln!("failed to run task command version\nError: {}", e);
+            }
+        }
 
         // daemon command
         Commands::DaemonStart {} => {
@@ -84,10 +91,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 if let Ok(pid_str) = fs::read_to_string(PID_FILE) {
                     let pid = pid_str.trim();
                     if std::path::Path::new(&format!("/proc/{}", pid)).exists() {
-                        println!(
-                            "Daemon xserved sucess to run at (PID: {})",
-                            pid
-                        );
+                        println!("Daemon xserved sucess to run at (PID: {})", pid);
                         return Ok(());
                     }
                 }
@@ -170,6 +174,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 }
             }
         },
+
+        // deploy command
+        Commands::Deploy { path } => {
+            let client = client.as_mut().unwrap();
+            if let Err(e) = daemon_deploy(client, &path).await {
+                eprintln!("Failed to run task command deploy\nError: {}", e);
+            }
+        }
+        Commands::Undeploy { path } => {
+            let client = client.as_mut().unwrap();
+            if let Err(e) = daemon_undeploy(client, &path).await {
+                eprintln!("Failed to run task command undeploy\nError: {}", e);
+            }
+        }
 
         Commands::Create { id, image } => {
             let client = client.as_mut().unwrap();

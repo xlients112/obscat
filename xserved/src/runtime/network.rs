@@ -1,51 +1,99 @@
+use std::hash::{DefaultHasher, Hash, Hasher};
+
 use crate::internal_proto::NetworkConfig;
 use tokio::process::Command;
 
-/// Mempersiapkan interface Bridge Utama (xsvd0) di Linux Host
-pub async fn init_global_bridge() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    println!("Mengecek ketersediaan global bridge (xsvd0)...");
+fn short_veth_id(container_id: &str) -> String {
+    let mut hasher = DefaultHasher::new();
+    container_id.hash(&mut hasher);
 
-    // Cek apakah bridge xsvd0 sudah ada di OS agar tidak bentrok
+    format!("{:06x}", hasher.finish() & 0xFFFFFF)
+}
+
+fn allocated_ip(container_id: &str, request_ip: &str) -> String {
+    if !request_ip.trim().is_empty() {
+        return request_ip.trim().to_string();
+    }
+    let mut hasher = DefaultHasher::new();
+    container_id.hash(&mut hasher);
+    let octet = ((hasher.finish() % 250) + 2) as u8;
+    format!("172.19.0.{}", octet)
+}
+
+pub async fn init_global_bridge() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    println!("Checking global bridge (xsvd0)...");
+
     let check_bridge = Command::new("ip")
         .args(["link", "show", "xsvd0"])
         .output()
         .await?;
 
-    if check_bridge.status.success() {
-        println!("Global bridge (xsvd0) sudah aktif dan siap digunakan.");
-        return Ok(());
+    if !check_bridge.status.success() {
+        println!("Global bridge (xsvd0) is already active and ready to use.");
+        Command::new("ip")
+            .args(["link", "add", "xsvd0", "type", "bridge"])
+            .output()
+            .await?;
+
+        Command::new("ip")
+            .args(["addr", "add", "172.19.0.1/16", "dev", "xsvd0"])
+            .output()
+            .await?;
+
+        Command::new("ip")
+            .args(["link", "set", "xsvd0", "up"])
+            .output()
+            .await?;
     }
 
-    println!("Global bridge tidak ditemukan. Membuat xsvd0 baru...");
-
-    //  Buat interface bertipe bridge
-    Command::new("ip")
-        .args(["link", "add", "xsvd0", "type", "bridge"])
-        .output()
-        .await?;
-
-    // Berikan IP Gateway default untuk jaringan kontainer (Misal: 172.19.0.1)
-    Command::new("ip")
-        .args(["addr", "add", "172.19.0.1/16", "dev", "xsvd0"])
-        .output()
-        .await?;
-
-    // Nyalakan interface bridge-nya
-    Command::new("ip")
-        .args(["link", "set", "xsvd0", "up"])
-        .output()
-        .await?;
+    println!("Global bridge not found. Creating new xsvd0...");
 
     // Aktifkan IP Forwarding di Kernel Linux agar kontainer bisa tembus internet luar
     // Menggunakan library std::fs bawaan Rust untuk menulis ke kernel /proc
     if let Err(e) = std::fs::write("/proc/sys/net/ipv4/ip_forward", "1") {
         eprintln!(
-            "Warning: Gagal mengaktifkan IP Forwarding kernel (Butuh hak akses root): {}",
+            "Warning: Failed to create IP Forwarding (you must have root access): {}",
             e
         );
     }
 
-    println!("Global bridge (xsvd0) berhasil diinisialisasi pada IP 172.19.0.1");
+    let check_nat = Command::new("iptables")
+        .args([
+            "-t",
+            "nat",
+            "-C",
+            "POSTROUTING",
+            "-s",
+            "172.19.0.0/16",
+            "!",
+            "-o",
+            "xsvd0",
+            "-j",
+            "MASQUERADE",
+        ])
+        .output()
+        .await?;
+
+    if !check_nat.status.success() {
+        Command::new("iptables")
+            .args([
+                "-t",
+                "nat",
+                "-A",
+                "POSTROUTING",
+                "-s",
+                "172.19.0.0/16",
+                "!",
+                "-o",
+                "xsvd0",
+                "-j",
+                "MASQUERADE",
+            ])
+            .output()
+            .await?;
+    }
+
+    println!("Global bridge (xsvd0) is active at 172.19.0.1/16");
     Ok(())
 }
 
@@ -57,42 +105,51 @@ pub async fn network_config_setup(
         return Ok(());
     }
 
-    println!("Ready to set config network {}", container_id);
-    let veth_host = format!(
-        "veth_{}",
-        &container_id[..std::cmp::min(5, container_id.len())]
-    );
-    let veth_container = format!(
-        "veth_container_{}",
-        &container_id[..std::cmp::min(5, container_id.len())]
-    );
+    let vid = short_veth_id(container_id);
+    let veth_host = format!("vh_{}", vid); // Sisi host (menempel ke xsvd0)
+    let veth_container = format!("vc_{}", vid);
 
-    let mut cmd = Command::new("ip");
-    cmd.arg("link");
-    cmd.arg("add");
-    cmd.arg(&veth_host);
-    cmd.arg("type");
-    cmd.arg("veth");
-    cmd.arg("peer");
-    cmd.arg("name");
-    cmd.arg(&veth_container);
-    cmd.output().await?;
+    let _ = Command::new("ip")
+        .args(["link", "delete", &veth_host])
+        .output()
+        .await;
 
-    // sodokan veth host ke bridge utama
-    let mut cmd_bridge = Command::new("ip");
-    cmd_bridge.arg("link");
-    cmd_bridge.arg("set");
-    cmd_bridge.arg(&veth_host);
-    cmd_bridge.arg("master");
-    cmd_bridge.arg("xsvd0");
-    cmd_bridge.output().await?;
+    let out = Command::new("ip")
+        .args([
+            "link",
+            "add",
+            &veth_host,
+            "type",
+            "veth",
+            "peer",
+            "name",
+            &veth_container,
+        ])
+        .output()
+        .await?;
 
-    let mut cmd_up = Command::new("ip");
-    cmd_up.arg("link");
-    cmd_up.arg("set");
-    cmd_up.arg(&veth_host);
-    cmd_up.arg("up");
-    cmd_up.output().await?;
+    if !out.status.success() {
+        return Err(format!(
+            "Failed to create veth: {}",
+            String::from_utf8_lossy(&out.stderr)
+        )
+        .into());
+    }
+
+    Command::new("ip")
+        .args(["link", "set", &veth_host, "master", "xsvd0"])
+        .output()
+        .await?;
+
+    Command::new("ip")
+        .args(["link", "set", &veth_host, "up"])
+        .output()
+        .await?;
+
+    if !config.port.trim().is_empty() {
+        let container_ip = allocated_ip(container_id, &config.ip_addres);
+        setup_port_forwarding(&container_ip, &config.port).await?;
+    }
 
     Ok(())
 }
@@ -101,111 +158,156 @@ pub async fn connect_container_network(
     container_id: &str,
     pid: i32,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let veth_container = format!(
-        "veth_{}",
-        &container_id[..std::cmp::min(5, container_id.len())]
-    );
+    let vid = short_veth_id(container_id);
+    let veth_container = format!("vc_{}", vid);
+    let pid_str = pid.to_string();
+    let container_ip = allocated_ip(container_id, "");
 
-    println!(
-        "ready to connect interface {} to pid {}",
-        veth_container, pid
-    );
+    let out_move = Command::new("ip")
+        .args(["link", "set", &veth_container, "netns", &pid_str])
+        .output()
+        .await?;
 
-    let mut cmd_move = Command::new("ip");
-    cmd_move
-        .arg("link")
-        .arg("set")
-        .arg(&veth_container)
-        .arg("nets")
-        .arg(pid.to_string());
-
-    let output = cmd_move.output().await?;
-    if !output.status.success() {
-        let err = String::from_utf8_lossy(&output.stderr);
-        println!(
-            "Failed to move veth to container namespaces\nError: {}",
-            err
-        );
+    if !out_move.status.success() {
+        return Err(format!(
+            "Failed to overide {} to netns {}: {}",
+            veth_container,
+            pid_str,
+            String::from_utf8_lossy(&out_move.stderr)
+        )
+        .into());
     }
 
-    // penamaan baru ke interface container dan beri ip
-    let mut cmd_rename = Command::new("nsenter");
-    cmd_rename
-        .arg("-t")
-        .arg(&pid.to_string())
-        .arg("-n")
-        .arg("ip")
-        .arg("link")
-        .arg("set")
-        .arg(&veth_container)
-        .arg("name")
-        .arg("eth0");
+    Command::new("nsenter")
+        .args(["-t", &pid_str, "-n", "ip", "link", "set", "lo", "up"])
+        .output()
+        .await?;
 
-    cmd_rename.output().await?;
+    Command::new("nsenter")
+        .args([
+            "-t",
+            &pid_str,
+            "-n",
+            "ip",
+            "link",
+            "set",
+            &veth_container,
+            "name",
+            "eth0",
+        ])
+        .output()
+        .await?;
 
-    // nyalakan interface eth0
-    let mut cmd_eth_up = Command::new("nsenter");
-    cmd_eth_up.args([
-        "-t",
-        &pid.to_string(),
-        "-n",
-        "ip",
-        "link",
-        "set",
-        "eth0",
-        "up",
-    ]);
-    cmd_eth_up.output().await?;
+    Command::new("nsenter")
+        .args(["-t", &pid_str, "-n", "ip", "link", "set", "eth0", "up"])
+        .output()
+        .await?;
 
-    // 4. BERI IP KE 'eth0' (Contoh IP Statis dulu, kelak bisa Anda buat dinamis lewat database IPAM)
-    let mut cmd_ip = Command::new("nsenter");
-    cmd_ip.args([
-        "-t",
-        &pid.to_string(),
-        "-n",
-        "ip",
-        "addr",
-        "add",
-        "172.19.0.2/16",
-        "dev",
-        "eth0",
-    ]);
-    cmd_ip.output().await?;
+    let cidr_ip = format!("{}/16", container_ip);
+    Command::new("nsenter")
+        .args([
+            "-t", &pid_str, "-n", "ip", "addr", "add", &cidr_ip, "dev", "eth0",
+        ])
+        .output()
+        .await?;
 
-    // 5. SET DEFAULT GATEWAY AGAR KONTAINER BISA MENGAKSES INTERNET LUAR VIA BRIDGE HOST
-    let mut cmd_gw = Command::new("nsenter");
-    cmd_gw.args([
-        "-t",
-        &pid.to_string(),
-        "-n",
-        "ip",
-        "route",
-        "add",
-        "default",
-        "via",
-        "172.19.0.1",
-    ]);
-    cmd_gw.output().await?;
+    Command::new("nsenter")
+        .args([
+            "-t",
+            &pid_str,
+            "-n",
+            "ip",
+            "route",
+            "add",
+            "default",
+            "via",
+            "172.19.0.1",
+        ])
+        .output()
+        .await?;
 
     println!(
-        "Jaringan kontainer {} berhasil dikonfigurasi (IP: 172.19.0.2)",
-        container_id
+        "Container network '{}' active with IP: {}",
+        container_id, container_ip
     );
     Ok(())
 }
 
-pub async fn clean_network(container_id: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let veth_host = format!("veth_{}", &container_id[..std::cmp::min(5, container_id.len())]);
+pub async fn setup_port_forwarding(
+    container_ip: &str,
+    port_mapping: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let (host_port, container_port) = port_mapping
+        .split_once(':')
+        .ok_or("Format port must be like host_port:container_port (example: 8080:80)")?;
+
+    let dest = format!("{}:{}", container_ip, container_port);
+
+    // Trafik dari luar host
+    Command::new("iptables")
+        .args([
+            "-t",
+            "nat",
+            "-A",
+            "PREROUTING",
+            "-p",
+            "tcp",
+            "--dport",
+            host_port,
+            "-j",
+            "DNAT",
+            "--to-destination",
+            &dest,
+        ])
+        .output()
+        .await?;
+
+    // Trafik dari localhost (127.0.0.1) di host sendiri
+    Command::new("iptables")
+        .args([
+            "-t",
+            "nat",
+            "-A",
+            "OUTPUT",
+            "-p",
+            "tcp",
+            "-d",
+            "127.0.0.1",
+            "--dport",
+            host_port,
+            "-j",
+            "DNAT",
+            "--to-destination",
+            &dest,
+        ])
+        .output()
+        .await?;
+
+    println!("Port forwarding active: :{} -> {}", host_port, dest);
+    Ok(())
+}
+
+pub async fn clean_network(
+    container_id: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let vid = short_veth_id(container_id);
+    let veth_host = format!("vh_{}", vid);
     println!("Cleanup network for container veth: {}", veth_host);
+
     // Periksa dulu apakah interface veth ini masih ada di host
-    let check = Command::new("ip").args(["link", "show", &veth_host]).output().await?;
+    let check = Command::new("ip")
+        .args(["link", "show", &veth_host])
+        .output()
+        .await?;
 
     if check.status.success() {
-        let mut cmd_del = Command::new("ip");
-        cmd_del.arg("link")
-        .arg("delete")
-        .arg(&veth_host);
-    println!("interface netwok {} has been deleted from host", veth_host);
+        Command::new("ip")
+            .arg("link")
+            .arg("delete")
+            .arg(&veth_host)
+            .output()
+            .await?;
+        println!("interface netwok {} has been deleted from host", veth_host);
     }
     Ok(())
 }

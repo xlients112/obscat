@@ -17,6 +17,9 @@ pub enum VendorList {
 pub enum Commands {
     // basic cmd
     Version,
+    Init {
+        folder: String, 
+    },
 
     // daemon start, check, stop
     DaemonStart {
@@ -29,6 +32,14 @@ pub enum Commands {
 
     // image manager
     Image(ImageArgs),
+
+    // deploy cli
+    Deploy {
+        path: String,
+    },
+    Undeploy {
+        path: String,
+    },
 
     // CLI COMMANDS INTI KE DAEMON
     Create {

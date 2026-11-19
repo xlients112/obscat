@@ -1,5 +1,7 @@
 use std::{
-    path::{Path, PathBuf}, process::Stdio, time::Duration,
+    path::{Path, PathBuf},
+    process::Stdio,
+    time::Duration,
 };
 
 use serde::Deserialize;
@@ -7,7 +9,12 @@ use serde_json::{Value, json};
 use tokio::{fs, process::Command, time::sleep};
 
 use crate::{
-    internal_proto::NetworkConfig, runtime::{logging::LogsCollector, network, utils::{BUNDLE_PATH, IMAGES_PATH, LOGS_PATH, YOUKI_ROOT}},
+    internal_proto::NetworkConfig,
+    runtime::{
+        logging::LogsCollector,
+        network,
+        utils::{BUNDLE_PATH, IMAGES_PATH, LOGS_PATH, YOUKI_ROOT},
+    },
 };
 
 // GLOBAL PATH
@@ -133,13 +140,6 @@ pub async fn runtime_spec(
         }));
     }
 
-    if let Some(namespaces) = config
-        .pointer_mut("/linux/namespaces")
-        .and_then(|n| n.as_array_mut())
-    {
-        namespaces.retain(|ns| ns.get("type").and_then(|t| t.as_str()) != Some("network"));
-    }
-
     let ready_json = serde_json::to_string_pretty(&config)?;
     fs::write(&config_path, ready_json).await?;
 
@@ -180,9 +180,7 @@ async fn resolve_image(image: &str) -> Result<PathBuf, Box<dyn std::error::Error
     }
 
     let safe_dir_name = format!("{}_{}", scope_image.replace('/', "_"), tag);
-    let image_rootfs = Path::new(IMAGES_PATH)
-        .join(safe_dir_name)
-        .join("rootfs");
+    let image_rootfs = Path::new(IMAGES_PATH).join(safe_dir_name).join("rootfs");
 
     if !fs::try_exists(&image_rootfs).await.unwrap_or(false) {
         return Err(format!("rootfs directory '{}' is broken or missing.", image).into());
@@ -240,19 +238,24 @@ pub async fn runtime_create(
 
     log.info("creating container instance...");
     let mut create = Command::new("youki");
-    create
+    let create_out = create
         .arg("--root")
         .arg(YOUKI_ROOT)
         .arg("create")
         .arg(container_id)
         .arg("--bundle")
-        .arg(bundles);
+        .arg(bundles)
+        .output()
+        .await?;
 
-    if !output.status.success() {
+    if create_out.status.success() {
         log.info("container has been succes created");
         match get_container_pid(container_id, log).await {
             Ok(pid) => {
-                log.info(format!("Container {} is created\nPID: {}", container_id, pid));
+                log.info(format!(
+                    "Container {} is created\nPID: {}",
+                    container_id, pid
+                ));
                 if let Err(net_err) = network::connect_container_network(container_id, pid).await {
                     log.error(format!(
                         "Failed to connect network to container, but container has been still created\nError: {}",

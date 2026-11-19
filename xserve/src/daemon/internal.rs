@@ -12,15 +12,11 @@ pub async fn daemon_create(
     image_id: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("Starting build container...");
-
-    // net configure
     let net_config = NetworkConfig {
         mode: "bridge".to_string(),
         ip_addres: "".to_string(),
         port: "".to_string(),
     };
-
-    // request grc
     let request = Request::new(CreateRequest {
         container_id: container_id.to_string(),
         image_id: image_id.to_string(),
@@ -28,7 +24,6 @@ pub async fn daemon_create(
         network: Some(net_config),
     });
 
-    // send request
     match client.create(request).await {
         Ok(response) => {
             let res = response.into_inner();

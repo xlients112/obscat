@@ -1,6 +1,6 @@
 use tokio::fs;
 
-use crate::runtime::utils::{PID_FILE, RUN_ROOT, YOUKI_ROOT, BUNDLE_PATH, LOGS_PATH, IMAGES_PATH};
+use crate::runtime::utils::{BUNDLE_PATH, IMAGES_PATH, LOGS_PATH, PID_FILE, RUN_ROOT, YOUKI_ROOT};
 
 pub async fn init_system() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     //init root runtime
@@ -15,7 +15,6 @@ pub async fn init_system() -> Result<(), Box<dyn std::error::Error + Send + Sync
 
     // init logs path
     fs::create_dir_all(LOGS_PATH).await?;
-
     // images path
     fs::create_dir_all(IMAGES_PATH).await?;
     Ok(())
