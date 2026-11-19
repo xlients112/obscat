@@ -31,7 +31,7 @@ Built with rust and integrated with the low-level OCI 'youki' backend, Deploymen
 You can install `Obscat container manager` instantly using our automated setup script. Run the following command in your terminal:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xlients112/obscat/refs/heads/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/xlients112/obscat/main/install.sh | sh
 ```
 ---
 
