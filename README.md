@@ -77,6 +77,9 @@ use this command, to automatic create deployment folder and `manifest.toml` exam
 ```bash
 obscat init my-deployment
 ```
+note: name of the folder `my-deployment` is deployment ID for register point to manage your deployment space.
+
+---
 ***add your source application:***
 copy your folder source application inside service folder `my-deployment/service`
 
@@ -106,6 +109,32 @@ my-project/
     ├── api/main.rs...            # Your apps in container_1
     ├── worker/main.go...         # Your apps in container_2
     └── web/index.html...         # Your apps in container_3
+```
+
+### Deploying your service
+to deploy your service application inside deployment folder, use command:
+```bash
+obscat deploy ./your-deployment-folder
+```
+or inside:
+```bash
+cd your-deployment-folder
+```
+```bash
+obscat deploy .
+```
+and using spesific folder:
+```bash
+obscat deploy /home/youruser/your-deployment-folder
+```
+
+### Undeploy
+Undeploy is automatic deleted your container service list instanly (this feature is experimental)
+however, because there is a risk that some processes or mount points might still be dependent on it.
+
+***usage:***
+```bash
+obscat undeploy your-deployment-id
 ```
 
 ---
