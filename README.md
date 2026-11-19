@@ -1,38 +1,34 @@
-# 📦 xserve container manager
-
+# Obscat, a new line container engine
 <p align="center">
   <img src="https://img.shields.io/badge/Rust-000000?logo=rust&logoColor=white" alt="Rust" />
   <img src="https://img.shields.io/badge/License-GNU_General_Public_License_v3.0-5A0E3B" alt="License" />
 </p>
 
-## 📄 Description
+## Description
 
-**xserve container manager** is a modern, lightweight, and high-performance container management tool built from the ground up to be **simple, clean, faster, and secure**. 
+**Obscat container engine manager** fast, lightweight, zero build, and high-performance to create container and deployment can make 10+ container in one command on your system.
 
-Engineered entirely in Rust, `xserve` provides bare-metal performance and strict memory safety, ensuring minimal overhead while managing your containerized workloads.
+Built with rust and integrated with the low-level OCI 'youki' backend, Deployment mode with zero-build with the OverlayFS system. 
 
 ---
 
 ## ✨ Key Features
 
 * **OCI Standard Compliant** – Full compatibility with Open Container Initiative (OCI) images and runtimes.
-* **Built Entirely in Rust** – Harnesses the power of Rust for unmatched speed, zero-cost abstractions, and memory safety.
+* **Image manager** – Manage your own base images for use in multiple containers.
 * **Resource Efficient** – Minimal CPU and memory footprint compared to traditional container daemons.
-* **Security-First Architecture** – Designed with isolated execution environments and strict permission models.
-* **Intuitive CLI** – Clean, human-readable commands that eliminate container management complexity.
-
+* **Zero build with deployment mode** –  Register your deployment folder to make more than 1 instance container in one command without build anything.
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 * we supported linux only with Architecture:
-* aarch64, x86_64
-* this project is development mode (not-stable)
+* aarch64-gnu, x86_64-gnu
 
 ### Installation
 
-You can install `xserve container manager` instantly using our automated setup script. Run the following command in your terminal:
+You can install `Obscat container manager` instantly using our automated setup script. Run the following command in your terminal:
 
 ```bash
 curl
@@ -40,7 +36,7 @@ curl
 
 ---
 
-## 🛠️ Usage Quickstart
+## Usage Quickstart
 
 Here are a few basic commands to get you up and running:
 
@@ -56,13 +52,36 @@ xserve pull alpine:latest
 
 ### Run a Container
 ```bash
-xserve run --name my-app -p 8080:80 alpine:latest
+xserve create --id container_id
 ```
 
 ### List Running Containers
 ```bash
 xserve ps
 ```
+```bash
+xserve state container_id
+```
+
+## Deployment
+Deployment is useful for registering your source application into the deployment mode folder, this is useful so that the engine can read the manifest and register your application source in more than 1 container.
+
+### How It Works
+1. **Drop-in Service Directory:** Organize your application source codes into a project directory alongside a single `manifest.toml` file—anywhere on your filesystem.
+2. **Manage your manifest.toml**
+manifest.toml config works to register your application, select the image, mount apps and destination folder in the container.
+4. **Isolated Multi-Service Execution:** Each service defined in the manifest is spawned as an independent, isolated container instance powered by `youki`, sharing a single base image layer with near-zero disk overhead and millisecond cold-start times.
+
+### Example Project Layout
+```text
+my-project/
+├── manifest.toml
+└── service/
+    ├── api/          # Your apps in container_1
+    ├── worker/       # Your apps in container_2
+    └── web/          # Your apps in container_3
+```
+
 
 ---
 
