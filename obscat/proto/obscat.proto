@@ -1,0 +1,104 @@
+syntax = "proto3";
+
+package obscat;
+
+service ContainerService {
+    rpc StreamLogs (StreamLogsRequest) returns (stream StreamLogsResponse);
+    rpc Create (CreateRequest) returns (CreateResponse) {}
+    rpc Delete (DeleteRequest) returns (DeleteResponse) {}
+    rpc State (StateRequest) returns (StateResponse) {}
+    rpc Run (RunRequest) returns (RunResponse) {}
+    rpc Kill (KillRequest) returns (KillResponse) {}
+    rpc Deploy (DeployRequest) returns (DeployResponse);
+    rpc Undeploy (UndeployRequest) returns (UndeployResponse);
+}
+
+//log stream ddebug
+message StreamLogsRequest {}
+
+message StreamLogsResponse {
+  string content = 1;
+}
+
+message DeployRequest {
+  string package_path = 1;
+}
+
+message DeployResponse {
+  bool sucess = 1;
+  string message = 2;
+}
+
+message UndeployRequest {
+  string package_path = 1;
+}
+
+message UndeployResponse {
+  bool sucess = 1;
+  string message = 2;
+}
+
+message SpecResponse {
+    bool sucess = 1;
+    string message = 2;
+}
+
+// network config
+message NetworkConfig {
+    string mode = 1;
+    string ip_addres = 2;
+    string port = 3;
+}
+
+// create
+message CreateRequest {
+  string container_id = 1;
+  string image_id = 2;
+  NetworkConfig network = 3;
+}
+
+message CreateResponse {
+  bool sucess = 1;
+  string message = 2;
+}
+
+// delete
+message DeleteRequest {
+  string container_id = 1;
+}
+
+message DeleteResponse {
+  bool sucess = 1;
+  string message = 2;
+}
+
+// State
+message StateRequest {
+  string container_id = 1;
+}
+
+message StateResponse {
+    bool sucess = 1;
+    string message = 2;
+}
+
+// run
+message RunRequest {
+  string container_id = 1;
+}
+
+message RunResponse {
+    bool sucess = 1;
+    string message = 2;
+}
+
+// kill
+message KillRequest {
+  string container_id = 1;
+  string signal = 2;
+}
+
+message KillResponse {
+  bool sucess = 1;
+  string message = 2;
+}

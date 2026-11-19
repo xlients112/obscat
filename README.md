@@ -57,6 +57,7 @@ xserve create --id container_id
 ```bash
 xserve state container_id
 ```
+---
 
 ## Deployment
 A deployment functions as a deployment space folder on the host, it creates and runs all container instances listed in `manifest.toml` including multiple instances of a container—along with your application source code.
