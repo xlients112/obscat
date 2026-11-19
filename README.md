@@ -12,10 +12,10 @@ Built with rust and integrated with the low-level OCI 'youki' backend, Deploymen
 
 ---
 
-## ✨ Key Features
+## Key Features
 
 * **OCI Standard Compliant** – Full compatibility with Open Container Initiative (OCI) images and runtimes.
-* **Image manager** – Manage your own base images for use in multiple containers.
+* **Image manager** – Manage your own base images for use in multiple containers with docker-hub repository.
 * **Resource Efficient** – Minimal CPU and memory footprint compared to traditional container daemons.
 * **Zero build with deployment mode** –  Register your deployment folder to make more than 1 instance container in one command without build anything.
 ---
@@ -23,7 +23,7 @@ Built with rust and integrated with the low-level OCI 'youki' backend, Deploymen
 ## Getting Started
 
 ### Prerequisites
-* we supported linux only with Architecture:
+* we supported linux only with Architecture for now:
 * aarch64-gnu, x86_64-gnu
 
 ### Installation
@@ -33,7 +33,6 @@ You can install `Obscat container manager` instantly using our automated setup s
 ```bash
 curl
 ```
-
 ---
 
 ## Usage Quickstart
@@ -54,43 +53,49 @@ xserve pull alpine:latest
 ```bash
 xserve create --id container_id
 ```
-
-### List Running Containers
-```bash
-xserve ps
-```
+### Check your container state.
 ```bash
 xserve state container_id
 ```
 
 ## Deployment
-Deployment is useful for registering your source application into the deployment mode folder, this is useful so that the engine can read the manifest and register your application source in more than 1 container.
+A deployment functions as a deployment space folder on the host, it creates and runs all container instances listed in `manifest.toml` including multiple instances of a container—along with your application source code.
 
 ### How It Works
-1. **Drop-in Service Directory:** Organize your application source codes into a project directory alongside a single `manifest.toml` file—anywhere on your filesystem.
-2. **Manage your manifest.toml**
-manifest.toml config works to register your application, select the image, mount apps and destination folder in the container.
-4. **Isolated Multi-Service Execution:** Each service defined in the manifest is spawned as an independent, isolated container instance powered by `youki`, sharing a single base image layer with near-zero disk overhead and millisecond cold-start times.
+***Create your deployment folder:***
+use this command, to automatic create deployment folder and `manifest.toml` example template.
+```bash
+xserve init my-deployment
+```
+***add your source application:***
+copy your folder source application inside service folder `my-deployment/service`
+
+***Configurate your manifest.toml***
+example:
+```toml
+[package]
+name = "my-deployment" //ensure this package name same with your deployment folder
+version = "0.1.0"
+
+[service.yourapps]
+image = "busybox:latest" //Register the image you have installed.
+destination = "/www" //destination path
+workdir = "/www"  // work directory
+ports = "8080:80" //custom port
+command = ["/bin/httpd", "-f", "-p", "80", "-h", "/www"] // your application command
+
+[service.yourapps.env]
+APP_ENV = "production"
+```
 
 ### Example deployment Layout
 ```text
 my-project/
-├── manifest.toml.   # your container config
+├── manifest.toml.   # your container config maniifest
 └── service/
-    ├── api/          # Your apps in container_1
-    ├── worker/       # Your apps in container_2
-    └── web/          # Your apps in container_3
-```
-
-
----
-
-## ⚙️ Configuration
-
-`xserve` works out of the box with zero configuration. However, you can easily customize its behavior by modifying the global configuration file:
-
-```bash
-nano ~/.config/xserve/config.toml
+    ├── api/main.rs...            # Your apps in container_1
+    ├── worker/main.go...         # Your apps in container_2
+    └── web/index.html...         # Your apps in container_3
 ```
 
 ---
@@ -109,4 +114,4 @@ Contributions are welcome! Whether it is reporting a bug, proposing new features
 
 ## 📄 License
 
-Distributed under the **MIT License**. See `LICENSE` for more information.
+Distributed under the **GNU General-Public-License V3.0 LICENSE**. See `LICENSE` for more information.
