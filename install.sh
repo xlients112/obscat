@@ -79,7 +79,7 @@ curl -fL --progress-bar "$OBSCAT_URL" -o "${TMP_DIR}/${OBSCAT_TAR}"
 echo "Unzip obscat to ${INSTALL_DIR}..."
 $SUDO tar -xzf "${TMP_DIR}/${OBSCAT_TAR}" -C "$TMP_DIR"
 $SUDO install -m 755 "${TMP_DIR}/obscat" "${INSTALL_DIR}/obscat"
-
+$SUDO install -m 755 "${TMP_DIR}/obscatd" "${INSTALL_DIR}/obscatd"
 # ==========================================
 # 6. DOWNLOAD & EKSTRAK YOUKI
 # ==========================================
