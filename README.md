@@ -72,10 +72,10 @@ Deployment is useful for registering your source application into the deployment
 manifest.toml config works to register your application, select the image, mount apps and destination folder in the container.
 4. **Isolated Multi-Service Execution:** Each service defined in the manifest is spawned as an independent, isolated container instance powered by `youki`, sharing a single base image layer with near-zero disk overhead and millisecond cold-start times.
 
-### Example Project Layout
+### Example deployment Layout
 ```text
 my-project/
-├── manifest.toml
+├── manifest.toml.   # your container config
 └── service/
     ├── api/          # Your apps in container_1
     ├── worker/       # Your apps in container_2
