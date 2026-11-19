@@ -106,6 +106,16 @@ pub async fn network_config_setup(
     let veth_host = format!("vh_{}", vid); // Sisi host (menempel ke xsvd0)
     let veth_container = format!("vc_{}", vid);
 
+    tokio::fs::create_dir_all("/var/run/netns").await?;
+    let _ = Command::new("ip")
+        .args(["netns", "delete", container_id])
+        .output()
+        .await;
+    Command::new("ip")
+        .args(["netns", "add", container_id])
+        .output()
+        .await?;
+
     let _ = Command::new("ip")
         .args(["link", "delete", &veth_host])
         .output()
