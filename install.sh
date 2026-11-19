@@ -71,7 +71,7 @@ trap cleanup EXIT INT TERM
 # 5. DOWNLOAD & EKSTRAK OBSCAT
 # ==========================================
 OBSCAT_TAR="obscat-${ARCH}-linux-gnu.tar.gz"
-OBSCAT_URL="https://github.com{OBSCAT_REPO}/releases/download/${OBSCAT_VERSION}/${OBSCAT_TAR}"
+OBSCAT_URL="https://github.com/${OBSCAT_REPO}/releases/download/${OBSCAT_VERSION}/${OBSCAT_TAR}"
 
 echo "Downloading obscat ${OBSCAT_URL}..."
 curl -fL --progress-bar "$OBSCAT_URL" -o "${TMP_DIR}/${OBSCAT_TAR}"
@@ -85,7 +85,7 @@ $SUDO install -m 755 "${TMP_DIR}/obscat" "${INSTALL_DIR}/obscat"
 # ==========================================
 # Format nama rilis resmi youki: youki-<versi>-<arch>-gnu.tar.gz
 YOUKI_TAR="youki-${YOUKI_VERSION}-${ARCH}-gnu.tar.gz"
-YOUKI_URL="https://github.com{YOUKI_REPO}/releases/download/v${YOUKI_VERSION}/${YOUKI_TAR}"
+YOUKI_URL="https://github.com/{YOUKI_REPO}/releases/download/v${YOUKI_VERSION}/${YOUKI_TAR}"
 
 echo "Downloading youki v${YOUKI_VERSION} dari ${YOUKI_URL}..."
 curl -fL --progress-bar "$YOUKI_URL" -o "${TMP_DIR}/${YOUKI_TAR}"
