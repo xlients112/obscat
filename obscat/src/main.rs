@@ -28,7 +28,7 @@ use crate::obscat_proto::container_service_client::ContainerServiceClient;
 use clap::Parser;
 use tonic::transport::Channel;
 
-const PID_FILE: &str = "obscat.pid";
+const PID_FILE: &str = "/var/run/obscatd/obscatd.pid";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
