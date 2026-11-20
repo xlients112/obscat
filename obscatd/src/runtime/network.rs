@@ -90,6 +90,42 @@ pub async fn init_global_bridge() -> Result<(), Box<dyn std::error::Error + Send
             .await?;
     }
 
+    let _ = std::fs::write("/proc/sys/net/ipv4/conf/all/route_localnet", "1");
+
+    let check_local_nat = Command::new("iptables")
+        .args([
+            "-t",
+            "nat",
+            "-C",
+            "POSTROUTING",
+            "-s",
+            "127.0.0.1",
+            "-d",
+            "172.19.0.0/16",
+            "-j",
+            "MASQUERADE",
+        ])
+        .output()
+        .await?;
+
+    if !check_local_nat.status.success() {
+        Command::new("iptables")
+            .args([
+                "-t",
+                "nat",
+                "-A",
+                "POSTROUTING",
+                "-s",
+                "127.0.0.1",
+                "-d",
+                "172.19.0.0/16",
+                "-j",
+                "MASQUERADE",
+            ])
+            .output()
+            .await?;
+    }
+
     println!("Global bridge (xsvd0) is active at 172.19.0.1/16");
     Ok(())
 }
