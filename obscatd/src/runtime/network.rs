@@ -312,5 +312,18 @@ pub async fn clean_network(
             .await?;
         println!("interface netwok {} has been deleted from host", veth_host);
     }
+
+    let netns_check = Command::new("ip").args(["netns", "list"]).output().await?;
+
+    if String::from_utf8_lossy(&netns_check.stdout).contains(container_id) {
+        let netns = Command::new("ip")
+            .args(["netns", "delete", container_id])
+            .output()
+            .await?;
+
+        if netns.status.success() {
+            println!("network namespace {} has been deleted.", container_id);
+        }
+    }
     Ok(())
 }
