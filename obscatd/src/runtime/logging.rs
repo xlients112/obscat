@@ -3,32 +3,32 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use tokio::{sync::broadcast};
 
-#[derive(Default, Clone)]
-pub struct LogsCollector {
-    lines: Vec<String>,
-}
+// #[derive(Default, Clone)]
+// pub struct LogsCollector {
+//     lines: Vec<String>,
+// }
 
-impl LogsCollector {
-    pub fn new() -> Self {
-        Self { lines: Vec::new() }
-    }
+// impl LogsCollector {
+//     pub fn new() -> Self {
+//         Self { lines: Vec::new() }
+//     }
 
-    pub fn info(&mut self, msg: impl AsRef<str>) {
-        let text = msg.as_ref();
-        println!("{}", text);
-        self.lines.push(text.to_string());
-    }
+//     pub fn info(&mut self, msg: impl AsRef<str>) {
+//         let text = msg.as_ref();
+//         println!("{}", text);
+//         self.lines.push(text.to_string());
+//     }
 
-    pub fn error(&mut self, msg: impl AsRef<str>) {
-        let text = format!("ERROR: {}", msg.as_ref());
-        println!("{}", text);
-        self.lines.push(text.to_string());
-    }
+//     pub fn error(&mut self, msg: impl AsRef<str>) {
+//         let text = format!("ERROR: {}", msg.as_ref());
+//         println!("{}", text);
+//         self.lines.push(text.to_string());
+//     }
 
-    pub fn flush(&self) -> String {
-        self.lines.join("\n")
-    }
-}
+//     pub fn flush(&self) -> String {
+//         self.lines.join("\n")
+//     }
+// }
 
 // debug capture
 static LOG_TX: OnceLock<broadcast::Sender<String>> = OnceLock::new();

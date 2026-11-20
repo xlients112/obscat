@@ -53,8 +53,6 @@ message NetworkConfig {
 // create
 message CreateRequest {
   string container_id = 1;
-  string image_id = 2;
-  NetworkConfig network = 3;
 }
 
 message CreateResponse {

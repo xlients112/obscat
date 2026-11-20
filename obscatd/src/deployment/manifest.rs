@@ -6,6 +6,8 @@ use std::{
 
 use serde::Deserialize;
 
+use crate::utils::MANIFEST_FILE;
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct Manifest {
     pub package: PackageConfig,
@@ -34,11 +36,11 @@ pub struct PackageConfig {
 
 impl Manifest {
     pub async fn load(package_path: &Path) -> Result<Self, String> {
-        let manifest_path = package_path.join("manifest.toml");
+        let manifest_path = package_path.join(MANIFEST_FILE);
 
         if !manifest_path.exists() {
             return Err(format!(
-                "manifest.toml file is not found in {:?}",
+                "obscat.toml file is not found in {:?}",
                 package_path
             ));
         }

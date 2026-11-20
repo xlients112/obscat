@@ -3,17 +3,20 @@ pub mod internal_proto {
 }
 
 pub mod deployment;
+pub mod container;
 pub mod grpcutils;
 pub mod runtime;
+pub mod utils;
 // pub mod mod;
 
+use crate::container::create::container_create;
 use crate::deployment::deployment::{deploy, undeploy};
 use crate::internal_proto::{
     CreateRequest, CreateResponse, DeleteRequest, DeleteResponse, DeployRequest, DeployResponse,
     KillRequest, KillResponse, RunRequest, RunResponse, StateRequest, StateResponse,
     StreamLogsRequest, StreamLogsResponse, UndeployRequest, UndeployResponse,
 };
-use crate::runtime::logging::{LogsCollector, init_global_capture, subscribe_logs};
+use crate::runtime::logging::{init_global_capture, subscribe_logs};
 use crate::runtime::{init, internal, network};
 use internal_proto::container_service_server::{ContainerService, ContainerServiceServer};
 use tokio_stream::StreamExt;
@@ -51,20 +54,18 @@ impl ContainerService for ObscatService {
         let req = grpcutils::unpack(request);
         let package_path = req.package_path.clone();
         // let net = req.network.as_ref().cloned().unwrap_or_default();
-        let mut log = LogsCollector::new();
 
-        let log = tokio::spawn(async move {
-            if let Err(e) = deploy(&package_path, &mut log).await {
-                log.info(format!("failed to run runtime deploy task\nError: {}", e));
+        tokio::spawn(async move {
+            if let Err(e) = deploy(&package_path).await {
+                println!("failed to run runtime deploy task\nError: {}", e);
             }
-            log
         })
         .await
         .unwrap_or_default();
 
         grpcutils::pack(DeployResponse {
             sucess: true,
-            message: log.flush(),
+            message: "OK".to_string(),
         })
     }
 
@@ -75,23 +76,22 @@ impl ContainerService for ObscatService {
     ) -> Result<Response<UndeployResponse>, Status> {
         let req = grpcutils::unpack(request);
         let package_path = req.package_path.clone();
-        // let net = req.network.as_ref().cloned().unwrap_or_default();
-        let mut log = LogsCollector::new();
 
-        let log = tokio::spawn(async move {
-            if let Err(e) = undeploy(&package_path, &mut log).await {
-                log.info(format!("failed to run runtime undeploy task\nError: {}", e));
+        tokio::spawn(async move {
+            if let Err(e) = undeploy(&package_path).await {
+                println!("failed to run runtime undeploy task\nError: {}", e);
             }
-            log
         })
         .await
         .unwrap_or_default();
 
         grpcutils::pack(UndeployResponse {
             sucess: true,
-            message: log.flush(),
+            message: "OK".to_string(),
         })
     }
+
+    // test create
 
     // create container
     async fn create(
@@ -99,23 +99,19 @@ impl ContainerService for ObscatService {
         request: Request<CreateRequest>,
     ) -> Result<Response<CreateResponse>, Status> {
         let req = grpcutils::unpack(request);
-        let cid = req.container_id.clone();
-        let image = req.image_id.clone();
-        let net = req.network.as_ref().cloned().unwrap_or_default();
-        let mut log = LogsCollector::new();
+        let package_path = req.container_id.clone();
 
-        let log = tokio::spawn(async move {
-            if let Err(e) = internal::runtime_create(&cid, &image, &net, &mut log).await {
-                log.info(format!("failed to run runtime create task\nError: {}", e));
+        tokio::spawn(async move {
+            if let Err(e) = container_create(&package_path).await {
+                println!("failed to run runtime create task\nError: {}", e);
             }
-            log
         })
         .await
         .unwrap_or_default();
 
         grpcutils::pack(CreateResponse {
             sucess: true,
-            message: log.flush(),
+            message: "OK".to_string(),
         })
     }
 
@@ -126,20 +122,18 @@ impl ContainerService for ObscatService {
     ) -> Result<Response<DeleteResponse>, Status> {
         let req = grpcutils::unpack(request);
         let cid = req.container_id.clone();
-        let mut log = LogsCollector::new();
 
-        let log = tokio::spawn(async move {
-            if let Err(e) = internal::runtime_delete(&cid, &mut log).await {
+        tokio::spawn(async move {
+            if let Err(e) = internal::runtime_delete(&cid).await {
                 eprintln!("Failed to run task delete container\nError: {}", e);
             }
-            log
         })
         .await
         .unwrap_or_default();
 
         grpcutils::pack(DeleteResponse {
             sucess: true,
-            message: log.flush(),
+            message: "OK".to_string(),
         })
     }
 
@@ -147,20 +141,18 @@ impl ContainerService for ObscatService {
     async fn run(&self, request: Request<RunRequest>) -> Result<Response<RunResponse>, Status> {
         let req = grpcutils::unpack(request);
         let cid = req.container_id.clone();
-        let mut log = LogsCollector::new();
         // tokio spawn run
-        let log = tokio::spawn(async move {
-            if let Err(e) = internal::container_start(&cid, &mut log).await {
+        tokio::spawn(async move {
+            if let Err(e) = internal::container_start(&cid).await {
                 eprintln!("Gagal menjalankan task kontainer: {}", e);
             }
-            log
         })
         .await
         .unwrap_or_default();
 
         grpcutils::pack(RunResponse {
             sucess: true,
-            message: log.flush(),
+            message: "OK".to_string(),
         })
     }
 
@@ -169,19 +161,18 @@ impl ContainerService for ObscatService {
         let req = grpcutils::unpack(request);
         let cid = req.container_id.clone();
         let sig = req.signal.clone();
-        let mut log = LogsCollector::new();
-        let log = tokio::spawn(async move {
-            if let Err(e) = internal::runtime_kill(&cid, &sig, &mut log).await {
+        
+        tokio::spawn(async move {
+            if let Err(e) = internal::runtime_kill(&cid, &sig).await {
                 eprintln!("Failed to kill container\nError: {}", e)
             }
-            log
         })
         .await
         .unwrap_or_default();
 
         grpcutils::pack(KillResponse {
             sucess: true,
-            message: log.flush(),
+            message: "OK".to_string(),
         })
     }
 
@@ -192,20 +183,18 @@ impl ContainerService for ObscatService {
     ) -> Result<Response<StateResponse>, Status> {
         let req = grpcutils::unpack(request);
         let cid = req.container_id.clone();
-        let mut log = LogsCollector::new();
         // tokio spawn state
-        let log = tokio::spawn(async move {
-            if let Err(e) = internal::state(&cid, &mut log).await {
+        tokio::spawn(async move {
+            if let Err(e) = internal::state(&cid).await {
                 eprintln!("Failed to run state task\n Error: {}", e);
             }
-            log
         })
         .await
         .unwrap_or_default();
 
         grpcutils::pack(StateResponse {
             sucess: true,
-            message: log.flush(),
+            message: "OK".to_string(),
         })
     }
 }

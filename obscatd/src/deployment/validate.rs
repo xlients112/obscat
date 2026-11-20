@@ -4,7 +4,7 @@ use tokio::fs;
 
 use crate::{
     deployment::manifest::{Manifest, ServiceConfig},
-    runtime::utils::IMAGES_PATH,
+    utils::IMAGES_PATH,
 };
 
 #[derive(Debug, Clone)]

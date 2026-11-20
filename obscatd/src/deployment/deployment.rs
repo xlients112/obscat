@@ -13,37 +13,35 @@ use crate::{
     internal_proto::NetworkConfig,
     runtime::{
         internal::{container_start, runtime_create, runtime_delete, runtime_kill},
-        logging::LogsCollector,
-        utils::{BUNDLE_PATH, YOUKI_ROOT},
     },
+    utils::{BUNDLE_PATH, YOUKI_ROOT},
 };
 
 pub async fn deploy(
     package_path: &str,
-    log: &mut LogsCollector,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let pkg_dir = Path::new(package_path);
 
-    log.info(format!("Reading manifest in {:?}", pkg_dir));
+    println!("Reading manifest in {:?}", pkg_dir);
     let manifest = Manifest::load(pkg_dir)
         .await
         .map_err(|e| format!("Manifest error: {}", e))?;
 
-    log.info("Validating package and dependention...");
+    println!("Validating package and dependention...");
     let validated_services = validate_package(pkg_dir, &manifest)
         .await
         .map_err(|e| format!("Failed to validate: {}", e))?;
 
     for svc in validated_services {
         let container_id = &svc.name;
-        log.info(format!("Deploying service '{}'...", container_id));
+        println!("Deploying service '{}'...", container_id);
 
-        deploy_service(&svc, log).await?;
+        deploy_service(&svc).await?;
 
-        log.info(format!(
+        println!(
             "Service '{}' has been sucess to deploy",
             container_id
-        ));
+        );
     }
 
     Ok(())
@@ -51,7 +49,6 @@ pub async fn deploy(
 
 pub async fn undeploy(
     package_path: &str,
-    log: &mut LogsCollector,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let pkg_dir = Path::new(package_path);
     let manifest = Manifest::load(pkg_dir)
@@ -59,25 +56,25 @@ pub async fn undeploy(
         .map_err(|e| format!("Manifest error: {}", e))?;
 
     for (service_name, _) in &manifest.service {
-        log.info(format!("Killing service '{}'...", service_name));
+        println!("Killing service '{}'...", service_name);
         let signal = &format!("SIGKILL").to_string();
-        if let Err(e) = runtime_kill(service_name, signal, log).await {
-            log.error(format!("Failed to kill service: {}", e));
+        if let Err(e) = runtime_kill(service_name, signal).await {
+            println!("Failed to kill service: {}", e);
         } else {
-            log.info(format!("service {} has been killed.", service_name));
+            println!("service {} has been killed.", service_name);
         }
 
-        log.info(format!("Deleting service '{}'...", service_name));
-        if let Err(e) = runtime_delete(service_name, log).await {
-            log.error(format!("failed to deleting service: {}", e));
+        println!("Deleting service '{}'...", service_name);
+        if let Err(e) = runtime_delete(service_name).await {
+            println!("failed to deleting service: {}", e);
         } else {
-            log.info(format!("sucess to deleting service: {}", service_name));
+            println!("sucess to deleting service: {}", service_name);
         }
 
-        log.info(format!(
+        println!(
             "All service in deployment '{}' has been sucess to un-deploy",
             package_path
-        ));
+        );
     }
 
     Ok(())
@@ -85,10 +82,8 @@ pub async fn undeploy(
 
 async fn deploy_service(
     svc: &ValidatedService,
-    log: &mut LogsCollector,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-
-    log.info("Preparing container network...");
+    println!("Preparing container network...");
     let container_id = &svc.name;
     let service_net_config = NetworkConfig {
         mode: svc
@@ -100,7 +95,7 @@ async fn deploy_service(
         port: svc.config.ports.clone().unwrap_or_default(),
     };
 
-    runtime_create(container_id, &svc.config.image, &service_net_config, log).await?;
+    runtime_create(container_id, &svc.config.image, &service_net_config).await?;
 
     let rootfs_dir = PathBuf::from(BUNDLE_PATH).join(container_id).join("rootfs");
 
@@ -108,22 +103,22 @@ async fn deploy_service(
     let target_app_dir = rootfs_dir.join(clean_dest);
     fs::create_dir_all(&target_app_dir).await?;
 
-    log.info(format!(
+    println!(
         "Copying application {:?} to {:?}...",
         svc.source_dir, target_app_dir
-    ));
+    );
     copy_dir_recursive(&svc.source_dir, &target_app_dir).await?;
 
-    log.info(format!("Turn on contianer '{}'...", container_id));
-    container_start(container_id, log)
+    println!("Turn on contianer '{}'...", container_id);
+    container_start(container_id)
         .await
         .map_err(|e| e.to_string())?;
 
     if !svc.config.command.is_empty() {
-        log.info(format!(
+        println!(
             "Running user application: {:?}",
             svc.config.command
-        ));
+        );
 
         let mut exec_cmd = Command::new("youki");
         exec_cmd.arg("--root").arg(YOUKI_ROOT).arg("exec");

@@ -47,7 +47,7 @@ APP_ENV = "production"
         clean_name
     );
 
-    fs::write(deploy_path.join("manifest.toml"), manifest_content)?;
+    fs::write(deploy_path.join("obscat.toml"), manifest_content)?;
 
     let sample_html = format!(
         "<h1>Hello from {}!</h1>\n<p>Running inside obscat container.</p>\n",

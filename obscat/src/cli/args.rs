@@ -43,8 +43,7 @@ pub enum Commands {
 
     // CLI COMMANDS INTI KE DAEMON
     Create {
-        id: String,
-        image: String,
+        path: String,
     },
     Delete {
         id: String,

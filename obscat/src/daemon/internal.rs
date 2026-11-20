@@ -1,7 +1,10 @@
+use std::path::Path;
+
 // use crate::grpcutils;
 use crate::obscat_proto::container_service_client::ContainerServiceClient;
 use crate::obscat_proto::{
-    CreateRequest, DeleteRequest, KillRequest, NetworkConfig, RunRequest, StateRequest, StreamLogsRequest,
+    CreateRequest, DeleteRequest, KillRequest, RunRequest, StateRequest,
+    StreamLogsRequest,
 };
 use tonic::{Request, transport::Channel};
 
@@ -10,7 +13,7 @@ pub async fn daemon_debug(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("Attached to obscat live debug stream (Ctrl+C to exit)...");
     let mut stream = client
-        .stream_logs(Request::new(StreamLogsRequest{}))
+        .stream_logs(Request::new(StreamLogsRequest {}))
         .await?
         .into_inner();
 
@@ -24,20 +27,25 @@ pub async fn daemon_debug(
 // create request
 pub async fn daemon_create(
     client: &mut ContainerServiceClient<Channel>,
-    container_id: &str,
-    image_id: &str,
+    container_path: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("Starting build container...");
-    let net_config = NetworkConfig {
-        mode: "bridge".to_string(),
-        ip_addres: "".to_string(),
-        port: "".to_string(),
+
+    let raw_path = Path::new(container_path);
+    let abs_path = if raw_path.is_absolute() {
+        raw_path.to_path_buf()
+    } else {
+        std::env::current_dir()?.join(raw_path)
     };
+    if !abs_path.exists() {
+        return Err(format!("Folder is not found: {:?}", abs_path).into());
+    }
+    let final_package_path = abs_path.to_string_lossy().to_string();
+
     let request = Request::new(CreateRequest {
-        container_id: container_id.to_string(),
-        image_id: image_id.to_string(),
+        container_id: final_package_path.to_string(),
         // bundle: bundle.to_string(),
-        network: Some(net_config),
+        // network: Some(net_config),
     });
 
     match client.create(request).await {

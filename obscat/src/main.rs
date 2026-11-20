@@ -24,6 +24,7 @@ use crate::cli::cummon;
 use crate::daemon::deploy::{daemon_deploy, daemon_undeploy};
 use crate::daemon::image;
 use crate::daemon::internal;
+use crate::obscat_proto::StreamLogsRequest;
 use crate::obscat_proto::container_service_client::ContainerServiceClient;
 use clap::Parser;
 use tonic::transport::Channel;
@@ -53,7 +54,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             e
         )
     })?;
-        Some(ContainerServiceClient::new(channel))
+        let grpc_client = ContainerServiceClient::new(channel);
+
+        let mut log_client = grpc_client.clone();
+        tokio::spawn(async move {
+            if let Ok(resp) = log_client.stream_logs(StreamLogsRequest {}).await {
+                let mut stream = resp.into_inner();
+                while let Ok(Some(msg)) = stream.message().await {
+                    println!("{}", msg.content);
+                }
+            }
+        });
+        Some(grpc_client)
     };
 
     match args.command {
@@ -189,9 +201,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             }
         }
 
-        Commands::Create { id, image } => {
+        Commands::Create { path } => {
             let client = client.as_mut().unwrap();
-            if let Err(e) = internal::daemon_create(client, &id, &image).await {
+            if let Err(e) = internal::daemon_create(client, &path).await {
                 eprintln!("Failed to run task command create\nError: {}", e);
             }
         }
