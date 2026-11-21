@@ -386,7 +386,7 @@ pub async fn runtime_list() -> Result<String, Box<dyn std::error::Error + Send +
         if cols.len() >= 6 {
             table.push_str(&format!(
                 "{:<18} {:<8} {:<10} {:<28} {}\n",
-                cols[0], cols[2], cols[3], cols[4], cols[5]
+                cols[0], cols[1], cols[2], cols[4], cols[5]
             ));
         }
     }
