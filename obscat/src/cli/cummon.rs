@@ -81,7 +81,7 @@ source = "./src"
 destination = "/app"
 command = ["/bin/sh", "-c", "httpd -f -p 8080 -h /app"]
 workdir = "/app"
-ports = "8080:8080"
+ports = "8080:80"
 network_mode = "bridge"
 ip_address = "10.88.0.15"
 

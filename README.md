@@ -1,8 +1,14 @@
-# Obscat, a new line container engine
+<div align="center">
+  <img src="obscat.png" alt="Obscat Logo" width="200">
+  
+  <h1>Obscat</h1>
+  <p><strong>Fast, lightweight, zero-build container engine manager built with Rust.</strong></p>
+
 <p align="center">
   <img src="https://img.shields.io/badge/Rust-000000?logo=rust&logoColor=white" alt="Rust" />
   <img src="https://img.shields.io/badge/License-GNU_General_Public_License_v3.0-5A0E3B" alt="License" />
 </p>
+</div>
 
 ## Description
 
@@ -23,17 +29,22 @@ Built with rust and integrated with the low-level OCI 'youki' backend, Deploymen
 ## Getting Started
 
 ### Prerequisites
-* we supported linux only with Architecture for now:
+* we supported linux only with Architecture for now
 * aarch64-gnu, x86_64-gnu
+* installing youki in the github youki-dev/youki, or manual in instalation section below.
 
 ### Installation
 
-You can install `Obscat container manager` instantly using our automated setup script. Run the following command in your terminal:
+You can install `Obscat container engine` instantly using our automated setup script. Run the following command in your terminal:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xlients112/obscat/main/install.sh | sh
 ```
 ---
+***BINARY***
+* obscat
+* obscatd
+* youki
 
 ## Usage Quickstart
 
@@ -43,28 +54,87 @@ Here are a few basic commands to get you up and running:
 ```bash
 obscat daemon-start
 ```
-or manualy (auto connect)
+check the daemon
 ```bash
-obscatd &
+obscat daemon-check
 ```
 
 ### Verify Installation
 ```bash
-obscat --version
+obscat version
 ```
 
 ### Pull an Image
+for now we have only docker-hub image repository to download/pull the images you want, usage:
 ```bash
-obscat pull alpine:latest
+obscat image pull docker-hub node:24
+```
+list your image already installed
+```bash
+obscat image list
+```
+remove
+```bash
+obscat image remove node:24
 ```
 
-### Run a Container
-```bash
-obscat create --id container_id
+### Create your Container
+Before creating container, create manifest inside your folder project
+
+example
+```toml
+[package]
+name = "your-package-name" # your container name
+version = "0.1.0"
+
+[container]
+image = "busybox:latest" #your image
+source = "." #your source application
+destination = "/app" #destination
+command = ["/bin/sh", "-c", "httpd -f -p 8080 -h /app"] #some command
+workdir = "/app"
+ports = "8080:80" #setting your container port
+network_mode = "bridge" #netowrk mode, delete this if you want using default
+ip_address = "10.88.0.15" #container IP (opsional)
+
+[container.env] #container ENV
+APP_ENV = "production"
+MY_API_KEY = "API_key_xxxxx"
+PORT = "8080"
 ```
+
+or using templates command with:
+```bash
+obscat init-manifest
+```
+
+### Create your container
+run this command inside your folder project with obscat.toml
+```bash
+cd my-project
+```
+```bash
+obscat create .
+```
+
+Or, in the outside to point your folder in the command
+```bash
+obscat create my-project
+```
+
+### Check your Container list
+```bash
+obscat list
+```
+
 ### Check your container state.
 ```bash
 obscat state container_id
+```
+
+### Deleting your container
+```bash
+obscat delete my-project
 ```
 ---
 
@@ -87,15 +157,15 @@ copy your folder source application inside service folder `my-deployment/service
 example:
 ```toml
 [package]
-name = "my-deployment" //ensure this package name same with your deployment folder
+name = "my-deployment" # ensure this package name same with your deployment folder
 version = "0.1.0"
 
 [service.yourapps]
-image = "busybox:latest" //Register the image you have installed.
-destination = "/www" //destination path
-workdir = "/www"  // work directory
-ports = "8080:80" //custom port
-command = ["/bin/httpd", "-f", "-p", "80", "-h", "/www"] // your application command
+image = "busybox:latest" # Register the image you have installed.
+destination = "/www" # destination path
+workdir = "/www"  # work directory
+ports = "8080:80" # custom port
+command = ["/bin/httpd", "-f", "-p", "80", "-h", "/www"] # your application command
 
 [service.yourapps.env]
 APP_ENV = "production"
@@ -112,9 +182,9 @@ my-project/
 ```
 
 ### Deploying your service
-to deploy your service application inside deployment folder, use command:
+to deploy your service application inside deployment folder, use command in outside deployment folder:
 ```bash
-obscat deploy ./your-deployment-folder
+obscat deploy your-deployment-folder
 ```
 or inside:
 ```bash
@@ -132,23 +202,21 @@ obscat deploy /home/youruser/your-deployment-folder
 Undeploy is automatic deleted your container service list instanly (this feature is experimental)
 however, because there is a risk that some processes or mount points might still be dependent on it.
 
-***usage:***
+***usage***
+inside deployment folder:
 ```bash
-obscat undeploy your-deployment-id
+obscat undeploy .
+```
+in the outside:
+```bash
+obscat undeploy your-deployment-folder
 ```
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-Contributions are welcome! Whether it is reporting a bug, proposing new features, or submitting a pull request, your help makes `xserve` better.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
+Contributions are welcome! Whether it is reporting a bug, proposing new features, or submitting a pull request, your help makes `obscat` better.
 ---
 
 ## 📄 License
