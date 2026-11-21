@@ -2,19 +2,19 @@ pub mod internal_proto {
     tonic::include_proto!("obscat");
 }
 
-pub mod deployment;
 pub mod container;
+pub mod deployment;
 pub mod grpcutils;
 pub mod runtime;
 pub mod utils;
 // pub mod mod;
 
-use crate::container::create::container_create;
+use crate::container::create::{container_create, container_delete};
 use crate::deployment::deployment::{deploy, undeploy};
 use crate::internal_proto::{
     CreateRequest, CreateResponse, DeleteRequest, DeleteResponse, DeployRequest, DeployResponse,
-    KillRequest, KillResponse, RunRequest, RunResponse, StateRequest, StateResponse,
-    StreamLogsRequest, StreamLogsResponse, UndeployRequest, UndeployResponse,
+    KillRequest, KillResponse, ListRequest, ListResponse, RunRequest, RunResponse, StateRequest,
+    StateResponse, StreamLogsRequest, StreamLogsResponse, UndeployRequest, UndeployResponse,
 };
 use crate::runtime::logging::{init_global_capture, subscribe_logs};
 use crate::runtime::{init, internal, network};
@@ -23,8 +23,9 @@ use tokio_stream::StreamExt;
 use tokio_stream::wrappers::BroadcastStream;
 use tonic::{Request, Response, Status, transport::Server};
 
-type LogStream =
-    std::pin::Pin<Box<dyn tokio_stream::Stream<Item = Result<StreamLogsResponse, Status>> + Send + 'static>>;
+type LogStream = std::pin::Pin<
+    Box<dyn tokio_stream::Stream<Item = Result<StreamLogsResponse, Status>> + Send + 'static>,
+>;
 
 #[derive(Debug, Default)]
 pub struct ObscatService {}
@@ -121,10 +122,10 @@ impl ContainerService for ObscatService {
         request: Request<DeleteRequest>,
     ) -> Result<Response<DeleteResponse>, Status> {
         let req = grpcutils::unpack(request);
-        let cid = req.container_id.clone();
+        let package_path = req.container_id.clone();
 
         tokio::spawn(async move {
-            if let Err(e) = internal::runtime_delete(&cid).await {
+            if let Err(e) = container_delete(&package_path).await {
                 eprintln!("Failed to run task delete container\nError: {}", e);
             }
         })
@@ -161,7 +162,7 @@ impl ContainerService for ObscatService {
         let req = grpcutils::unpack(request);
         let cid = req.container_id.clone();
         let sig = req.signal.clone();
-        
+
         tokio::spawn(async move {
             if let Err(e) = internal::runtime_kill(&cid, &sig).await {
                 eprintln!("Failed to kill container\nError: {}", e)
@@ -196,6 +197,19 @@ impl ContainerService for ObscatService {
             sucess: true,
             message: "OK".to_string(),
         })
+    }
+
+    async fn list(&self, _request: Request<ListRequest>) -> Result<Response<ListResponse>, Status> {
+        let table = match internal::runtime_list().await {
+            Ok(output) => output,
+            Err(e) => {
+                eprintln!("Failed to run task list, Error: {}", e);
+                String::new()
+            }
+        };
+    grpcutils::pack(ListResponse {
+        table
+    })
     }
 }
 

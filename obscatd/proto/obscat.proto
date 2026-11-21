@@ -3,14 +3,15 @@ syntax = "proto3";
 package obscat;
 
 service ContainerService {
-    rpc StreamLogs (StreamLogsRequest) returns (stream StreamLogsResponse);
-    rpc Create (CreateRequest) returns (CreateResponse) {}
-    rpc Delete (DeleteRequest) returns (DeleteResponse) {}
-    rpc State (StateRequest) returns (StateResponse) {}
-    rpc Run (RunRequest) returns (RunResponse) {}
-    rpc Kill (KillRequest) returns (KillResponse) {}
-    rpc Deploy (DeployRequest) returns (DeployResponse);
-    rpc Undeploy (UndeployRequest) returns (UndeployResponse);
+  rpc StreamLogs (StreamLogsRequest) returns (stream StreamLogsResponse);
+  rpc Create (CreateRequest) returns (CreateResponse) {}
+  rpc Delete (DeleteRequest) returns (DeleteResponse) {}
+  rpc State (StateRequest) returns (StateResponse) {}
+  rpc List (ListRequest) returns (ListResponse) {}
+  rpc Run (RunRequest) returns (RunResponse) {}
+  rpc Kill (KillRequest) returns (KillResponse) {}
+  rpc Deploy (DeployRequest) returns (DeployResponse);
+  rpc Undeploy (UndeployRequest) returns (UndeployResponse);
 }
 
 //log stream ddebug
@@ -25,7 +26,7 @@ message DeployRequest {
 }
 
 message DeployResponse {
-  bool sucess = 1;
+  bool   sucess  = 1;
   string message = 2;
 }
 
@@ -34,20 +35,20 @@ message UndeployRequest {
 }
 
 message UndeployResponse {
-  bool sucess = 1;
+  bool   sucess  = 1;
   string message = 2;
 }
 
 message SpecResponse {
-    bool sucess = 1;
-    string message = 2;
+  bool   sucess  = 1;
+  string message = 2;
 }
 
 // network config
 message NetworkConfig {
-    string mode = 1;
-    string ip_addres = 2;
-    string port = 3;
+  string mode      = 1;
+  string ip_addres = 2;
+  string port      = 3;
 }
 
 // create
@@ -56,7 +57,7 @@ message CreateRequest {
 }
 
 message CreateResponse {
-  bool sucess = 1;
+  bool   sucess  = 1;
   string message = 2;
 }
 
@@ -66,7 +67,7 @@ message DeleteRequest {
 }
 
 message DeleteResponse {
-  bool sucess = 1;
+  bool   sucess  = 1;
   string message = 2;
 }
 
@@ -76,8 +77,16 @@ message StateRequest {
 }
 
 message StateResponse {
-    bool sucess = 1;
-    string message = 2;
+  bool   sucess  = 1;
+  string message = 2;
+}
+
+// list
+message ListRequest {
+}
+
+message ListResponse {
+  string table = 1;
 }
 
 // run
@@ -86,17 +95,17 @@ message RunRequest {
 }
 
 message RunResponse {
-    bool sucess = 1;
-    string message = 2;
+  bool   sucess  = 1;
+  string message = 2;
 }
 
 // kill
 message KillRequest {
   string container_id = 1;
-  string signal = 2;
+  string signal       = 2;
 }
 
 message KillResponse {
-  bool sucess = 1;
+  bool   sucess  = 1;
   string message = 2;
 }

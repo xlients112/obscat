@@ -10,10 +10,8 @@ use tokio::{fs, process::Command, time::sleep};
 
 use crate::{
     internal_proto::NetworkConfig,
-    runtime::{
-        network,
-    },
-        utils::{BUNDLE_PATH, IMAGES_PATH, LOGS_PATH, YOUKI_ROOT},
+    runtime::network,
+    utils::{BUNDLE_PATH, IMAGES_PATH, LOGS_PATH, YOUKI_ROOT},
 };
 // youki state
 #[derive(Debug, Deserialize)]
@@ -256,10 +254,7 @@ pub async fn runtime_create(
         println!("container has been succes created");
         match get_container_pid(container_id).await {
             Ok(pid) => {
-                println!(
-                    "Container {} is created\nPID: {}",
-                    container_id, pid
-                );
+                println!("Container {} is created\nPID: {}", container_id, pid);
                 if let Err(net_err) = network::connect_container_network(container_id, pid).await {
                     println!(
                         "Failed to connect network to container, but container has been still created\nError: {}",
@@ -349,9 +344,7 @@ pub async fn runtime_delete(
 }
 
 // runtime state
-pub async fn state(
-    container_id: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn state(container_id: &str) -> Result<(), Box<dyn std::error::Error>> {
     let mut state = Command::new("youki");
     state
         .arg("--root")
@@ -373,6 +366,34 @@ pub async fn state(
 
     Ok(())
 }
+
+// runtime list
+pub async fn runtime_list() -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    let mut list = Command::new("youki");
+    list.arg("--root").arg(YOUKI_ROOT).arg("list");
+
+    let output = list.output().await?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        println!("Error: {}", stderr)
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut table = String::new();
+
+    for line in stdout.lines() {
+        let cols: Vec<&str> = line.split_whitespace().collect();
+        if cols.len() >= 6 {
+            table.push_str(&format!(
+                "{:<18} {:<8} {:<10} {:<28} {}\n",
+                cols[0], cols[2], cols[3], cols[4], cols[5]
+            ));
+        }
+    }
+
+    Ok(table)
+}
+
 // rountime run
 // pub async fn container_run(
 //     container_id: &str,
@@ -426,10 +447,7 @@ pub async fn container_start(
         .await?;
 
     if output.status.success() {
-        println!(
-            "Container '{}' has been started (start)",
-            container_id
-        );
+        println!("Container '{}' has been started (start)", container_id);
         Ok(())
     } else {
         let err = String::from_utf8_lossy(&output.stderr);
@@ -458,10 +476,7 @@ pub async fn runtime_kill(
         );
     } else {
         let err = String::from_utf8_lossy(&output.stderr);
-        println!(
-            "failed to kill container: {}\nError: {}",
-            container_id, err
-        );
+        println!("failed to kill container: {}\nError: {}", container_id, err);
     }
 
     // update state

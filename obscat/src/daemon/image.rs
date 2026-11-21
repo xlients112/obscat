@@ -96,8 +96,22 @@ pub async fn image_remove(image_spec: &str) -> Result<(), Box<dyn std::error::Er
     let sanitized_name = format!("{}_{}", repo.replace('/', "_"), tag);
     let image_dir_path = format!("{}/{}", IMAGE_STORE_PATH, sanitized_name);
     let rootfs_target = format!("{}/rootfs", image_dir_path);
+
+    let check_path = std::fs::canonicalize(&rootfs_target)
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or(rootfs_target);
+
     if let Ok(mounts) = fs::read_to_string("/proc/mounts").await {
-        if mounts.contains(&rootfs_target) {
+        let is_mounted = mounts.lines().any(|line| {
+            line.split_whitespace().any(|field| {
+                field == check_path
+                    || field
+                        .split(&[',', ':', '='][..])
+                        .any(|token| token == check_path)
+            })
+        });
+
+        if is_mounted {
             return Err(format!(
                 "Cannot remove image {}:{}: rootfs is currently mounted by an active container",
                 repo, tag
@@ -110,7 +124,6 @@ pub async fn image_remove(image_spec: &str) -> Result<(), Box<dyn std::error::Er
         fs::remove_dir_all(&image_dir_path).await?;
         println!("Removed extracted rootfs at {}", image_dir_path);
     }
-    
 
     let new_data = serde_json::to_string_pretty(&remaining_images)?;
     fs::write(&index_path, new_data).await?;

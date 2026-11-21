@@ -9,18 +9,12 @@ use crate::{
     deployment::{
         manifest::Manifest,
         validate::{ValidatedService, validate_package},
-    },
-    internal_proto::NetworkConfig,
-    runtime::{
-        internal::{container_start, runtime_create, runtime_delete, runtime_kill},
-    },
-    utils::{BUNDLE_PATH, YOUKI_ROOT},
+    }, internal_proto::NetworkConfig, runtime::internal::{container_start, runtime_create, runtime_delete, runtime_kill}, utils::{BUNDLE_PATH, LOCK_FILE, YOUKI_ROOT},
 };
 
-pub async fn deploy(
-    package_path: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+pub async fn deploy(package_path: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let pkg_dir = Path::new(package_path);
+    // let lock_path = format!("{}/{}", package_path, LOCK_FILE);
 
     println!("Reading manifest in {:?}", pkg_dir);
     let manifest = Manifest::load(pkg_dir)
@@ -34,28 +28,24 @@ pub async fn deploy(
 
     for svc in validated_services {
         let container_id = &svc.name;
+        manifest.write_lock(package_path, &container_id)?;
+
         println!("Deploying service '{}'...", container_id);
 
         deploy_service(&svc).await?;
 
-        println!(
-            "Service '{}' has been sucess to deploy",
-            container_id
-        );
+        println!("Service '{}' has been sucess to deploy", container_id);
     }
 
     Ok(())
 }
 
-pub async fn undeploy(
-    package_path: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+pub async fn undeploy(package_path: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let pkg_dir = Path::new(package_path);
-    let manifest = Manifest::load(pkg_dir)
-        .await
-        .map_err(|e| format!("Manifest error: {}", e))?;
+    let lock = Manifest::load_from_lock(pkg_dir).map_err(|e| format!("Manifest error: {}", e))?;
+    // let frozen_manifest = &lock.frozen_manifest;
 
-    for (service_name, _) in &manifest.service {
+    for (service_name, _) in &lock.frozen_manifest.service {
         println!("Killing service '{}'...", service_name);
         let signal = &format!("SIGKILL").to_string();
         if let Err(e) = runtime_kill(service_name, signal).await {
@@ -71,11 +61,18 @@ pub async fn undeploy(
             println!("sucess to deleting service: {}", service_name);
         }
 
-        println!(
-            "All service in deployment '{}' has been sucess to un-deploy",
-            package_path
-        );
     }
+
+    let lock_path = pkg_dir.join(LOCK_FILE);
+    if lock_path.exists() {
+        std::fs::remove_file(&lock_path)
+            .map_err(|e| format!("Failed to remove lockfile: {}", e))?;
+    }
+
+    println!(
+        "All services in deployment '{}' have been successfully undeployed.",
+        package_path
+    );
 
     Ok(())
 }
@@ -115,10 +112,7 @@ async fn deploy_service(
         .map_err(|e| e.to_string())?;
 
     if !svc.config.command.is_empty() {
-        println!(
-            "Running user application: {:?}",
-            svc.config.command
-        );
+        println!("Running user application: {:?}", svc.config.command);
 
         let mut exec_cmd = Command::new("youki");
         exec_cmd.arg("--root").arg(YOUKI_ROOT).arg("exec");

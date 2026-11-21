@@ -17,10 +17,11 @@ pub enum VendorList {
 pub enum Commands {
     // basic cmd
     Version,
-    Init {
+    InitDeployment {
         folder: String, 
     },
 
+    InitManifest {},
     // daemon start, check, stop
     DaemonStart {
 
@@ -51,6 +52,7 @@ pub enum Commands {
     State {
         id: String,
     },
+    List {},
     Run {
         id: String,
     },

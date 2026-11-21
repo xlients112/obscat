@@ -1,5 +1,6 @@
 // GLOBAL PATH
 pub const MANIFEST_FILE : &str = "obscat.toml";
+pub const LOCK_FILE: &str = "obscat.lock";
 pub const RUN_ROOT: &str = "/var/run/obscatd";
 pub const PID_FILE: &str = "/var/run/obscatd/obscatd.pid";
 pub const YOUKI_ROOT: &str = "/var/run/obscatd/youki";

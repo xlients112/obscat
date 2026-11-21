@@ -3,8 +3,7 @@ use std::path::Path;
 // use crate::grpcutils;
 use crate::obscat_proto::container_service_client::ContainerServiceClient;
 use crate::obscat_proto::{
-    CreateRequest, DeleteRequest, KillRequest, RunRequest, StateRequest,
-    StreamLogsRequest,
+    CreateRequest, DeleteRequest, KillRequest, ListRequest, RunRequest, StateRequest, StreamLogsRequest,
 };
 use tonic::{Request, transport::Channel};
 
@@ -44,8 +43,6 @@ pub async fn daemon_create(
 
     let request = Request::new(CreateRequest {
         container_id: final_package_path.to_string(),
-        // bundle: bundle.to_string(),
-        // network: Some(net_config),
     });
 
     match client.create(request).await {
@@ -68,12 +65,23 @@ pub async fn daemon_create(
 // delete request
 pub async fn daemon_delete(
     client: &mut ContainerServiceClient<Channel>,
-    container_id: &str,
+    container_path: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("Starting to delete container...");
 
+    let raw_path = Path::new(container_path);
+    let abs_path = if raw_path.is_absolute() {
+        raw_path.to_path_buf()
+    } else {
+        std::env::current_dir()?.join(raw_path)
+    };
+    if !abs_path.exists() {
+        return Err(format!("Folder is not found: {:?}", abs_path).into());
+    }
+    let final_package_path = abs_path.to_string_lossy().to_string();
+
     let request = Request::new(DeleteRequest {
-        container_id: container_id.to_string(),
+        container_id: final_package_path.to_string(),
     });
 
     match client.delete(request).await {
@@ -114,6 +122,28 @@ pub async fn daemon_state(
             eprintln!("GRPC Connection failes\nError: {}", e.message());
         }
     }
+    Ok(())
+}
+
+pub async fn daemon_list(
+    client: &mut ContainerServiceClient<Channel>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let request = Request::new(ListRequest {});
+
+    match client.list(request).await {
+        Ok(response) => {
+            let res = response.into_inner();
+            if res.table.trim().is_empty() {
+                println!("No container found.")
+            } else {
+                print!("{}", res.table)
+            }
+        }
+        Err(e) => {
+            eprintln!("GRPC Connection failed\nError: {}", e.message());
+        }
+    }
+
     Ok(())
 }
 

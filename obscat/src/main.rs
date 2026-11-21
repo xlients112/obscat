@@ -75,9 +75,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 eprintln!("failed to run task command version\nError: {}", e);
             }
         }
-        Commands::Init { folder } => {
+        Commands::InitDeployment { folder } => {
             if let Err(e) = cummon::init_deployment(&folder).await {
-                eprintln!("failed to run task command version\nError: {}", e);
+                eprintln!("failed to run task command init\nError: {}", e);
+            }
+        }
+        Commands::InitManifest {  } => {
+            if let Err(e) = cummon::init_manifest().await {
+                eprintln!("failed to run task command init\nError: {}", e)
             }
         }
 
@@ -219,6 +224,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let client = client.as_mut().unwrap();
             if let Err(e) = internal::daemon_state(client, &id).await {
                 eprintln!("failed to run task command state\nError: {}", e)
+            }
+        }
+
+        Commands::List {  } => {
+            let client = client.as_mut().unwrap();
+            if let Err(e) = internal::daemon_list(client).await {
+                eprintln!("failed to run task command list\nError: {}", e)
             }
         }
 

@@ -6,12 +6,7 @@ use std::{
 use tokio::{fs, process::Command};
 
 use crate::{
-    container::{manifest::Manifest, validate::resolve_image_rootfs},
-    internal_proto::NetworkConfig,
-    runtime::{
-        internal::{container_start, runtime_create},
-    },
-    utils::{BUNDLE_PATH, YOUKI_ROOT},
+    container::{manifest::Manifest, validate::resolve_image_rootfs}, internal_proto::NetworkConfig, runtime::internal::{container_start, runtime_create, runtime_delete, runtime_kill}, utils::{BUNDLE_PATH, LOCK_FILE, YOUKI_ROOT},
 };
 
 pub async fn container_create(
@@ -22,6 +17,7 @@ pub async fn container_create(
         .await
         .map_err(|e| format!("Manifest error: {}", e))?;
     let container_id = manifest.create_container_id();
+    manifest.write_lock(package_path, &container_id)?;
 
     let image_rootfs = resolve_image_rootfs(&manifest.container.image);
     if !fs::try_exists(&image_rootfs).await.unwrap_or(false) {
@@ -98,6 +94,43 @@ pub async fn container_create(
             .spawn()
             .map_err(|e| format!("Failed to spawn command application: {}", e))?;
     }
+    Ok(())
+}
+
+pub async fn container_delete(
+    package_path: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let pkg_dir = Path::new(package_path);
+    let lock = Manifest::load_from_lock(pkg_dir).map_err(|e| format!("Manifest error: {}", e))?;
+    let container_id = &lock.container_id;
+
+    println!("Killing container '{}'...", container_id);
+    let signal = &format!("SIGKILL").to_string();
+    if let Err(e) = runtime_kill(container_id, signal).await {
+        println!("Failed to kill container: {}", e);
+    } else {
+        println!("Container {} has been killed.", container_id);
+    }
+
+    println!("Deleting container '{}'...", container_id);
+    if let Err(e) = runtime_delete(container_id).await {
+        println!("failed to deleting container: {}", e);
+    } else {
+        println!("sucess to deleting container: {}", container_id);
+    }
+
+    let lock_path = pkg_dir.join(LOCK_FILE);
+    if lock_path.exists() {
+        std::fs::remove_file(&lock_path)
+            .map_err(|e| format!("Failed to remove lockfile: {}", e))?;
+    }
+
+    println!(
+        "Container {} in '{}' have been successfully deleted.",
+        container_id,
+        package_path
+    );
+
     Ok(())
 }
 

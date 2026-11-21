@@ -1,8 +1,8 @@
 use std::{fs, path::Path};
 
 pub async fn cummon_version() -> Result<(), Box<dyn std::error::Error>> {
-    let obscat_version = "v0.1.1".to_string();
-    let obscatd_version = "v0.1.1".to_string();
+    let obscat_version = "v0.1.3".to_string();
+    let obscatd_version = "v0.1.3".to_string();
 
     let status = "PRE-RELEASE".to_string();
     println!(
@@ -61,5 +61,37 @@ APP_ENV = "production"
     println!("NOTE: nothing to build, {} is only your deployment space folder to manage your application container. read docs in github", clean_name);
 
 
+    Ok(())
+}
+
+
+
+pub async fn init_manifest() -> Result<(), Box<dyn std::error::Error>> {
+    let manifest_path = Path::new("obscat.toml");
+    if manifest_path.exists() {
+        return Err("Manifest file is already exists.".into())
+    }
+    let manifest_content =r#"[package]
+name = "your-package-name"
+version = "0.1.0"
+
+[container]
+image = "alpine:latest"
+source = "./src"
+destination = "/app"
+command = ["/bin/sh", "-c", "httpd -f -p 8080 -h /app"]
+workdir = "/app"
+ports = "8080:8080"
+network_mode = "bridge"
+ip_address = "10.88.0.15"
+
+[container.env]
+APP_ENV = "production"
+PORT = "8080"
+DEBUG = "false"
+"#;
+
+fs::write(manifest_path, manifest_content)?;
+println!("Manifest template has been created.");
     Ok(())
 }
