@@ -1,0 +1,61 @@
+
+Benchmark selesai! Laporan disimpan ke: benchmark_report_20261122_144018.txt
+
+====================================================================
+                  OBSCAT CONTAINER ENGINE BENCHMARK
+====================================================================
+Tanggal Uji      : 2026-11-22 14:40:20
+Target Deploy    : /root/tes
+Status Exit      : SUKSES (0)
+--------------------------------------------------------------------
+INFORMASI SISTEM
+--------------------------------------------------------------------
+OS / Kernel      : Linux 6.8.0-147-generic
+CPU              : Intel Xeon E312xx (Sandy Bridge, IBRS update)
+BIOS RHEL-9.8.0 PC (Q35 + ICH9, 2009)  CPU @ 2.0GHz
+Total RAM Host   : 1.9Gi
+PID obscatd      : 3340
+Total Container  : 11 container terdeteksi
+====================================================================
+
+1. WAKTU EKSEKUSI & CLI METRICS
++------------------------------------------+-----------------------+
+
+| Metrik                                   | Hasil                 |
++------------------------------------------+-----------------------+
+
+| Total Waktu Deploy (Wall Clock)          | 1.101 detik
+| Puncak Penggunaan RAM CLI (obscat)       | 6.00 MB
++------------------------------------------+-----------------------+
+
+2. PERFORMA DAEMON (obscatd)
++------------------------------------------+-----------+-----------+
+
+| Kondisi / Fase                           | CPU (%)   | RAM (MB)  |
++------------------------------------------+-----------+-----------+
+
+| Sebelum Deploy (Idle)                    | 0.0%      | 5.68      |
+| Puncak Saat Deploy (Peak)                | 0.00%     | 5.79      |
+| Setelah Deploy (Running)                 | 0.0%      | 5.79      |
++------------------------------------------+-----------+-----------+
+
+| Selisih Kenaikan RAM (Idle -> Running)   |           | +0.11 MB
++------------------------------------------+-----------+-----------+
+
+====================================================================
+Catatan: Pengukuran daemon diambil dengan interval sampling 100ms.
+====================================================================
+root@ubuntu:~/tes$ obscat list
+ID                 PID      STATUS     CREATED                      CREATOR
+tes6               67202    Running    2026-11-22T14:40:19+00:00    root
+tes2               67160    Running    2026-11-22T14:40:19+00:00    root
+tes10              67122    Running    2026-11-22T14:40:19+00:00    root
+tes4               67082    Running    2026-11-22T14:40:19+00:00    root
+tes9               67044    Running    2026-11-22T14:40:19+00:00    root
+tes7               66983    Running    2026-11-22T14:40:19+00:00    root
+tes3               66941    Running    2026-11-22T14:40:18+00:00    root
+tes1               66901    Running    2026-11-22T14:40:18+00:00    root
+tes22              66861    Running    2026-11-22T14:40:18+00:00    root
+tes5               66823    Running    2026-11-22T14:40:18+00:00    root
+tes8               66783    Running    2026-11-22T14:40:18+00:00    root
+root@ubuntu:~/tes$
