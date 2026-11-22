@@ -6,7 +6,7 @@ set -eu
 # ==========================================
 OBSCAT_REPO="xlients112/obscat"
 YOUKI_REPO="youki-dev/youki"
-OBSCAT_VERSION="v0.1.2"
+OBSCAT_VERSION="v0.1.3"
 YOUKI_VERSION="0.7.0"
 INSTALL_DIR="/usr/local/bin"
 
