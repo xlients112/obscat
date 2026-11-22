@@ -69,17 +69,9 @@ for now we have only docker-hub image repository to download/pull the images you
 ```bash
 obscat image pull docker-hub node:24
 ```
-list your image already installed
-```bash
-obscat image list
-```
-remove
-```bash
-obscat image remove node:24
-```
 
 ### Create your Container
-Before creating container, create manifest inside your folder project
+Before creating container, create manifest ``obscat.toml`` inside your folder project
 
 example
 ```toml
@@ -139,13 +131,13 @@ obscat delete my-project
 ---
 
 ## Deployment
-A deployment functions as a deployment space folder on the host, it creates and runs all container instances listed in `manifest.toml` including multiple instances of a container—along with your application source code.
+A deployment functions as a deployment space folder on the host, it creates and runs all container instances listed in ``obscat.toml`` including multiple instances of a container—along with your application source code.
 
 ### How It Works
 ***Create your deployment folder:***
-use this command, to automatic create deployment folder and `manifest.toml` example template.
+use this command, to automatic create deployment folder and ``obscat.toml`` example template.
 ```bash
-obscat init my-deployment
+obscat init-deployment your-deployment
 ```
 note: name of the folder `my-deployment` is deployment ID for register point to manage your deployment space.
 
@@ -153,7 +145,7 @@ note: name of the folder `my-deployment` is deployment ID for register point to 
 ***add your source application:***
 copy your folder source application inside service folder `my-deployment/service`
 
-***Configurate your manifest.toml***
+***Configurate your obscat.toml***
 example:
 ```toml
 [package]
@@ -211,6 +203,35 @@ in the outside:
 ```bash
 obscat undeploy your-deployment-folder
 ```
+
+---
+### Benchmark
+#### Deployment Performance
+
+| Metric | Result |
+|---|---:|
+| Containers Deployed | 11 Containers |
+| Deployment Time (Wall Clock) | **1.101 seconds** |
+| CLI Peak RAM Usage | 6.00 MB |
+| Command Execution Status | Success |
+
+#### Daemon Resource Consumption
+
+| Condition | CPU Usage | RAM Usage |
+|---|---:|---:|
+| Before Deployment (Idle) | 0.0% | 5.68 MB |
+| During Deployment (Peak) | 0.00% | 5.79 MB |
+| After Deployment (Running) | 0.0% | 5.79 MB |
+
+#### Memory Overhead
+
+| Metric | Result |
+|---|---:|
+| Idle RAM | 5.68 MB |
+| Running RAM | 5.79 MB |
+| RAM Increase | **+0.11 MB** |
+
+**See full benchmark:** [Benchmark](https://github.com/xlients112/obscat/tree/main/benchmark)
 
 ---
 
