@@ -12,7 +12,7 @@ use crate::{
     }, internal_proto::NetworkConfig, runtime::{
         db::deployment::{
             delete_deployment, get_services_by_deployment, save_deployment, save_service,
-        }, internal::{container_start, runtime_create, runtime_delete, runtime_kill},
+        }, internal::{container_start, runtime_create, runtime_delete, runtime_kill}, network,
     }, utils::{BUNDLE_PATH, LOCK_FILE, YOUKI_ROOT},
 };
 
@@ -158,12 +158,15 @@ async fn deploy_service(
             .map_err(|e| format!("Failed to spawn command application: {}", e))?;
     }
 
+    let final_ip =
+        network::allocated_ip(container_id, &service_net_config.ip_addres);
+
     save_service(
         &container_id,
         &deployment_id,
         &svc.name,
         &svc.config.image,
-        &service_net_config.ip_addres,
+        &final_ip,
         &service_net_config.port,
     )
     .map_err(|e| format!("failed to save deployment package, error: {}", e))?;

@@ -10,7 +10,7 @@ fn short_veth_id(container_id: &str) -> String {
     format!("{:06x}", hasher.finish() & 0xFFFFFF)
 }
 
-fn allocated_ip(container_id: &str, request_ip: &str) -> String {
+pub fn allocated_ip(container_id: &str, request_ip: &str) -> String {
     if !request_ip.trim().is_empty() {
         return request_ip.trim().to_string();
     }
@@ -139,7 +139,7 @@ pub async fn network_config_setup(
     }
 
     let vid = short_veth_id(container_id);
-    let veth_host = format!("vh_{}", vid); // Sisi host (menempel ke xsvd0)
+    let veth_host = format!("vh_{}", vid);
     let veth_container = format!("vc_{}", vid);
 
     tokio::fs::create_dir_all("/var/run/netns").await?;
@@ -330,11 +330,11 @@ pub async fn setup_port_forwarding(
 pub async fn clean_network(
     container_id: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    if let Ok(Some((saved_ip, port_mapping))) =
+    if let Ok(Some((_, port_mapping))) =
         get_ip_and_port_by_id(container_id)
     {
         if !port_mapping.trim().is_empty() {
-            let container_ip = allocated_ip(container_id, &saved_ip);
+            let container_ip = allocated_ip(container_id, "");
             let _ = cleanup_port_forwarding(&container_ip, &port_mapping).await;
         }
     }
@@ -373,14 +373,13 @@ pub async fn clean_network(
     Ok(())
 }
 
-// Pasangan persis dari setup_port_forwarding milik Anda (tinggal ubah -A menjadi -D)
 pub async fn cleanup_port_forwarding(
     container_ip: &str,
     port_mapping: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let (host_port, container_port) = port_mapping
         .split_once(':')
-        .ok_or("Format port tidak valid")?;
+        .ok_or("Port format is not valid")?;
 
     let dest = format!("{}:{}", container_ip, container_port);
 

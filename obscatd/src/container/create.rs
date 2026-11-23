@@ -6,13 +6,9 @@ use std::{
 use tokio::{fs, process::Command};
 
 use crate::{
-    container::{manifest::Manifest, validate::resolve_image_rootfs},
-    internal_proto::NetworkConfig,
-    runtime::{
-        db,
-        internal::{container_start, runtime_create, runtime_delete, runtime_kill},
-    },
-    utils::{BUNDLE_PATH, LOCK_FILE, YOUKI_ROOT},
+    container::{manifest::Manifest, validate::resolve_image_rootfs}, internal_proto::NetworkConfig, runtime::{
+        db, internal::{container_start, runtime_create, runtime_delete, runtime_kill}, network,
+    }, utils::{BUNDLE_PATH, LOCK_FILE, YOUKI_ROOT},
 };
 
 pub async fn container_create(
@@ -101,12 +97,14 @@ pub async fn container_create(
             .map_err(|e| format!("Failed to spawn command application: {}", e))?;
     }
 
+    let final_ip = network::allocated_ip(&container_id, &service_net_config.ip_addres);
+
     println!("Creating database for container {}", &container_id);
     db::container::save(
         &container_id,
         &manifest.package.name,
         &manifest.container.image,
-        &service_net_config.ip_addres,
+        &final_ip,
         &service_net_config.port,
     )
     .map_err(|e| format!("failed to save container info to database, error: {}", e))?;
