@@ -191,8 +191,11 @@ obscat deploy /home/youruser/your-deployment-folder
 ```
 
 ### Undeploy
-Undeploy is automatic deleted your container service list instanly (this feature is experimental)
-however, because there is a risk that some processes or mount points might still be dependent on it.
+Undeploy is automatic deleted your container service list instanly use by reading the lockfile manifest ``obscat.lock``, cleaning the mounting overlayFS, deleting the bundles folder and your source at inside your container, and clean the networking settings.
+
+> ### [CAUNTION]
+> **VERY IMPORTANT, obscat daemon undeployed by reading the obscat.lock, ensure you are not DELETING obscat.lock before undeployed!.**
+> The daemon will become confused if `obscat.lock` is missing; however, if you successfully perform an undeploy, `obscat.lock` will be automatically deleted.
 
 ***usage***
 inside deployment folder:
