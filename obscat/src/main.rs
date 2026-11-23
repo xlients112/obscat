@@ -24,8 +24,8 @@ use crate::cli::cummon;
 use crate::daemon::deploy::{daemon_deploy, daemon_undeploy};
 use crate::daemon::image;
 use crate::daemon::internal;
-use crate::obscat_proto::StreamLogsRequest;
 use crate::obscat_proto::container_service_client::ContainerServiceClient;
+use crate::obscat_proto::StreamLogsRequest;
 use clap::Parser;
 use tonic::transport::Channel;
 
@@ -49,11 +49,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             Channel::from_static("http://127.0.0.1:5005").connect_timeout(Duration::from_secs(3));
 
         let channel = endpoint.connect().await.map_err(|e| {
-        format!(
+            format!(
             "Failed to connect obscat daemon\n\nensure the obscat daemon is started.\nError: {}",
             e
         )
-    })?;
+        })?;
         let grpc_client = ContainerServiceClient::new(channel);
 
         let mut log_client = grpc_client.clone();
@@ -80,7 +80,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 eprintln!("failed to run task command init\nError: {}", e);
             }
         }
-        Commands::InitManifest {  } => {
+        Commands::InitManifest {} => {
             if let Err(e) = cummon::init_manifest().await {
                 eprintln!("failed to run task command init\nError: {}", e)
             }
@@ -227,7 +227,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             }
         }
 
-        Commands::List {  } => {
+        Commands::List {} => {
             let client = client.as_mut().unwrap();
             if let Err(e) = internal::daemon_list(client).await {
                 eprintln!("failed to run task command list\nError: {}", e)

@@ -6,7 +6,13 @@ use std::{
 use tokio::{fs, process::Command};
 
 use crate::{
-    container::{manifest::Manifest, validate::resolve_image_rootfs}, internal_proto::NetworkConfig, runtime::internal::{container_start, runtime_create, runtime_delete, runtime_kill}, utils::{BUNDLE_PATH, LOCK_FILE, YOUKI_ROOT},
+    container::{manifest::Manifest, validate::resolve_image_rootfs},
+    internal_proto::NetworkConfig,
+    runtime::{
+        db,
+        internal::{container_start, runtime_create, runtime_delete, runtime_kill},
+    },
+    utils::{BUNDLE_PATH, LOCK_FILE, YOUKI_ROOT},
 };
 
 pub async fn container_create(
@@ -84,7 +90,7 @@ pub async fn container_create(
         }
 
         exec_cmd
-            .arg(container_id)
+            .arg(&container_id)
             .args(&manifest.container.command)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
@@ -94,6 +100,17 @@ pub async fn container_create(
             .spawn()
             .map_err(|e| format!("Failed to spawn command application: {}", e))?;
     }
+
+    println!("Creating database for container {}", &container_id);
+    db::container::save(
+        &container_id,
+        &manifest.package.name,
+        &manifest.container.image,
+        &service_net_config.ip_addres,
+        &service_net_config.port,
+    )
+    .map_err(|e| format!("failed to save container info to database, error: {}", e))?;
+
     Ok(())
 }
 
@@ -103,6 +120,10 @@ pub async fn container_delete(
     let pkg_dir = Path::new(package_path);
     let lock = Manifest::load_from_lock(pkg_dir).map_err(|e| format!("Manifest error: {}", e))?;
     let container_id = &lock.container_id;
+
+    println!("Getting database information");
+    db::container::get_network(&container_id)
+        .map_err(|e| format!("failed to get database info, error: {}", e))?;
 
     println!("Killing container '{}'...", container_id);
     let signal = &format!("SIGKILL").to_string();
@@ -125,10 +146,13 @@ pub async fn container_delete(
             .map_err(|e| format!("Failed to remove lockfile: {}", e))?;
     }
 
+    println!("Cleaning database container");
+    db::container::delete(&container_id)
+        .map_err(|e| format!("failed to deleting container database, error: {}", e))?;
+
     println!(
         "Container {} in '{}' have been successfully deleted.",
-        container_id,
-        package_path
+        container_id, package_path
     );
 
     Ok(())

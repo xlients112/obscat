@@ -2,6 +2,8 @@ use std::{
     collections::HashMap,
     fs,
     path::{Path, PathBuf},
+    sync::atomic::{AtomicU32, Ordering},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use serde::{Deserialize, Serialize};
@@ -36,9 +38,12 @@ pub struct PackageConfig {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ManifestLock {
+    pub deployment_id: String,
     pub active_containers: Vec<String>,
     pub frozen_manifest: Manifest,
 }
+
+static CONTAINER_COUNTER: AtomicU32 = AtomicU32::new(0);
 
 impl Manifest {
     pub async fn load(package_path: &Path) -> Result<Self, String> {
@@ -64,19 +69,91 @@ impl Manifest {
         Ok(manifest)
     }
 
-    pub fn write_lock(&self, package_path: &str, container_id: &str) -> Result<(), String> {
+    pub fn create_deployment_id(&self) -> String {
+        let clean: String = self
+            .package
+            .name
+            .chars()
+            .map(|c| {
+                if c.is_ascii_alphanumeric() {
+                    c.to_ascii_lowercase()
+                } else {
+                    '-'
+                }
+            })
+            .collect::<String>()
+            .chars()
+            .take(10)
+            .collect::<String>()
+            .trim_matches('-')
+            .to_string();
+
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .subsec_nanos();
+        let suffix = format!("{:04x}", nanos & 0xFFFF);
+
+        if clean.is_empty() {
+            format!("dep-{}", suffix)
+        } else {
+            format!("{}-{}", clean, suffix)
+        }
+    }
+
+    pub fn create_container_id(&self, service_name: &str) -> String {
+        let sanitize = |input: &str, max_len: usize| -> String {
+            let s: String = input
+                .chars()
+                .map(|c| {
+                    if c.is_ascii_alphanumeric() {
+                        c.to_ascii_lowercase()
+                    } else {
+                        '-'
+                    }
+                })
+                .collect();
+            s.chars()
+                .take(max_len)
+                .collect::<String>()
+                .trim_matches('-')
+                .to_string()
+        };
+
+        let pkg_part = sanitize(&self.package.name, 8);
+        let svc_part = sanitize(service_name, 8);
+
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .subsec_nanos();
+        let count = CONTAINER_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let suffix = format!("{:06x}", (nanos ^ count) & 0xFFFFFF);
+
+        match (pkg_part.is_empty(), svc_part.is_empty()) {
+            (false, false) => format!("{}-{}-{}", pkg_part, svc_part, suffix),
+            (false, true) => format!("{}-{}", pkg_part, suffix),
+            (true, false) => format!("{}-{}", svc_part, suffix),
+            (true, true) => format!("ctr-{}", suffix),
+        }
+    }
+
+    pub fn write_lock(&self, package_path: &str, deployment_id: &str, container_id: &str) -> Result<(), String> {
         let lock_path = Path::new(package_path).join(LOCK_FILE);
 
         let mut lock = if lock_path.exists() {
             let content = fs::read_to_string(&lock_path)
-            .map_err(|e| format!("Failed to read lockfile: {}", e))?;
+                .map_err(|e| format!("Failed to read lockfile: {}", e))?;
 
-        toml::from_str::<ManifestLock>(&content).unwrap_or_else(|_| ManifestLock {
-            active_containers: Vec::new(),
-            frozen_manifest: self.clone(),
-        })
+
+            toml::from_str::<ManifestLock>(&content).unwrap_or_else(|_| ManifestLock {
+                deployment_id: deployment_id.to_string(),
+                active_containers: Vec::new(),
+                frozen_manifest: self.clone(),
+            })
         } else {
             ManifestLock {
+                deployment_id: deployment_id.to_string(),
                 active_containers: Vec::new(),
                 frozen_manifest: self.clone(),
             }
@@ -88,27 +165,25 @@ impl Manifest {
 
         let tmp_path = Path::new(package_path).join(".obscat.lock.tmp");
         let toml_str = toml::to_string_pretty(&lock)
-        .map_err(|e| format!("Failed to serialize lockfile: {}", e))?;
+            .map_err(|e| format!("Failed to serialize lockfile: {}", e))?;
 
-    fs::write(&tmp_path, toml_str).map_err(|e| format!("error: {}", e))?;
-    fs::rename(&tmp_path, &lock_path).map_err(|e| format!("Failed to rename {}", e))?;
+        fs::write(&tmp_path, toml_str).map_err(|e| format!("error: {}", e))?;
+        fs::rename(&tmp_path, &lock_path).map_err(|e| format!("Failed to rename {}", e))?;
 
-    Ok(())
-
+        Ok(())
     }
 
     pub fn load_from_lock(package_path: &Path) -> Result<ManifestLock, String> {
         let lock_path = package_path.join(LOCK_FILE);
 
         if !lock_path.exists() {
-            return Err(format!("No active deployment lockfile found."))
+            return Err(format!("No active deployment lockfile found."));
         }
 
         let content = fs::read_to_string(&lock_path)
-        .map_err(|e| format!("Failed to read lockfile: {}", e))?;
+            .map_err(|e| format!("Failed to read lockfile: {}", e))?;
 
-    toml::from_str::<ManifestLock>(&content)
-    .map_err(|e| format!("corrupted lockfile: {}", e))
+        toml::from_str::<ManifestLock>(&content).map_err(|e| format!("corrupted lockfile: {}", e))
     }
 }
 

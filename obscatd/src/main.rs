@@ -17,7 +17,7 @@ use crate::internal_proto::{
     StateResponse, StreamLogsRequest, StreamLogsResponse, UndeployRequest, UndeployResponse,
 };
 use crate::runtime::logging::{init_global_capture, subscribe_logs};
-use crate::runtime::{init, internal, network};
+use crate::runtime::{db, init, internal, network};
 use internal_proto::container_service_server::{ContainerService, ContainerServiceServer};
 use tokio_stream::StreamExt;
 use tokio_stream::wrappers::BroadcastStream;
@@ -207,9 +207,7 @@ impl ContainerService for ObscatService {
                 String::new()
             }
         };
-    grpcutils::pack(ListResponse {
-        table
-    })
+        grpcutils::pack(ListResponse { table })
     }
 }
 
@@ -226,6 +224,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Err(e) = init::init_system().await {
         eprintln!("Failed to init global system\nError: {}", e)
     }
+
+    // init database
+    db::con::init_db("/var/lib/obscatd/state.db")
+        .await.expect("Failed to initialized database SQLite");
 
     // grpc server
     let addr = "0.0.0.0:5005".parse()?;

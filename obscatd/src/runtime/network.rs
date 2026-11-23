@@ -1,6 +1,6 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 
-use crate::internal_proto::NetworkConfig;
+use crate::{internal_proto::NetworkConfig, runtime::db::get_ip_and_port_by_id};
 use tokio::process::Command;
 
 fn short_veth_id(container_id: &str) -> String {
@@ -330,6 +330,15 @@ pub async fn setup_port_forwarding(
 pub async fn clean_network(
     container_id: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    if let Ok(Some((saved_ip, port_mapping))) =
+        get_ip_and_port_by_id(container_id)
+    {
+        if !port_mapping.trim().is_empty() {
+            let container_ip = allocated_ip(container_id, &saved_ip);
+            let _ = cleanup_port_forwarding(&container_ip, &port_mapping).await;
+        }
+    }
+
     let vid = short_veth_id(container_id);
     let veth_host = format!("vh_{}", vid);
     println!("Cleanup network for container veth: {}", veth_host);
@@ -361,5 +370,58 @@ pub async fn clean_network(
             println!("network namespace {} has been deleted.", container_id);
         }
     }
+    Ok(())
+}
+
+// Pasangan persis dari setup_port_forwarding milik Anda (tinggal ubah -A menjadi -D)
+pub async fn cleanup_port_forwarding(
+    container_ip: &str,
+    port_mapping: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let (host_port, container_port) = port_mapping
+        .split_once(':')
+        .ok_or("Format port tidak valid")?;
+
+    let dest = format!("{}:{}", container_ip, container_port);
+
+    Command::new("iptables")
+        .args([
+            "-t",
+            "nat",
+            "-D",
+            "PREROUTING",
+            "-p",
+            "tcp",
+            "--dport",
+            host_port,
+            "-j",
+            "DNAT",
+            "--to-destination",
+            &dest,
+        ])
+        .output()
+        .await?;
+
+    Command::new("iptables")
+        .args([
+            "-t",
+            "nat",
+            "-D",
+            "OUTPUT",
+            "-p",
+            "tcp",
+            "-d",
+            "127.0.0.1",
+            "--dport",
+            host_port,
+            "-j",
+            "DNAT",
+            "--to-destination",
+            &dest,
+        ])
+        .output()
+        .await?;
+
+    println!("Port forwarding cleaned: :{} -> {}", host_port, dest);
     Ok(())
 }

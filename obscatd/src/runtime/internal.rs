@@ -1,7 +1,5 @@
 use std::{
-    path::{Path, PathBuf},
-    process::Stdio,
-    time::Duration,
+    collections::HashMap, path::{Path, PathBuf}, process::Stdio, time::Duration,
 };
 
 use serde::Deserialize;
@@ -369,26 +367,63 @@ pub async fn state(container_id: &str) -> Result<(), Box<dyn std::error::Error>>
 
 // runtime list
 pub async fn runtime_list() -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    let mut list = Command::new("youki");
-    list.arg("--root").arg(YOUKI_ROOT).arg("list");
 
-    let output = list.output().await?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        println!("Error: {}", stderr)
+    let mut status_map: HashMap<String, String> = HashMap::new();
+        let output = Command::new("youki")
+        .arg("--root")
+        .arg(YOUKI_ROOT)
+        .arg("list")
+        .output()
+        .await?;
+
+    if output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        for line in stdout.lines().skip(1) { // skip header youki
+            let cols: Vec<&str> = line.split_whitespace().collect();
+            if cols.len() >= 3 {
+                status_map.insert(cols[0].to_string(), cols[2].to_string());
+            }
+        }
     }
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let mut table = String::new();
+    let items = crate::runtime::db::list_all_items()
+        .map_err(|e| format!("Failed to read containers from DB: {}", e))?;
 
-    for line in stdout.lines() {
-        let cols: Vec<&str> = line.split_whitespace().collect();
-        if cols.len() >= 6 {
-            table.push_str(&format!(
-                "{:<18} {:<8} {:<10} {:<28} {}\n",
-                cols[0], cols[1], cols[2], cols[4], cols[5]
-            ));
+    if items.is_empty() {
+        return Ok("No containers found.\n".to_string());
+    }
+
+    let truncate = |s: &str, max: usize| -> String {
+        if s.chars().count() > max {
+            format!("{}..", s.chars().take(max - 2).collect::<String>())
+        } else {
+            s.to_string()
         }
+    };
+
+    let mut table = format!(
+        "{:<18} {:<22} {:<18} {:<10} {:<15} {}\n",
+        "ID", "NAME (DEPLOY)", "IMAGE", "STATUS", "IP ADDRESS", "PORTS"
+    );
+
+    for item in items {
+        let status = status_map
+            .get(&item.id)
+            .cloned()
+            .unwrap_or_else(|| "Stopped".to_string());
+
+        let ip = if item.ip_address.trim().is_empty() { "-" } else { &item.ip_address };
+        let port = if item.port.trim().is_empty() { "-" } else { &item.port };
+
+        table.push_str(&format!(
+            "{:<18} {:<22} {:<18} {:<10} {:<15} {}\n",
+            truncate(&item.id, 17),
+            truncate(&item.display_name, 21),
+            truncate(&item.image, 17),
+            status,
+            ip,
+            port
+        ));
     }
 
     Ok(table)

@@ -9,7 +9,11 @@ use crate::{
     deployment::{
         manifest::Manifest,
         validate::{ValidatedService, validate_package},
-    }, internal_proto::NetworkConfig, runtime::internal::{container_start, runtime_create, runtime_delete, runtime_kill}, utils::{BUNDLE_PATH, LOCK_FILE, YOUKI_ROOT},
+    }, internal_proto::NetworkConfig, runtime::{
+        db::deployment::{
+            delete_deployment, get_services_by_deployment, save_deployment, save_service,
+        }, internal::{container_start, runtime_create, runtime_delete, runtime_kill},
+    }, utils::{BUNDLE_PATH, LOCK_FILE, YOUKI_ROOT},
 };
 
 pub async fn deploy(package_path: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -26,13 +30,21 @@ pub async fn deploy(package_path: &str) -> Result<(), Box<dyn std::error::Error 
         .await
         .map_err(|e| format!("Failed to validate: {}", e))?;
 
+    let deployment_id = manifest.create_deployment_id();
+    println!("saving package info to database.");
+    save_deployment(
+        &deployment_id,
+        &manifest.package.name,
+        &manifest.package.version,
+    )
+    .map_err(|e| format!("failed to save deployment database, error: {}", e))?;
+
     for svc in validated_services {
-        let container_id = &svc.name;
-        manifest.write_lock(package_path, &container_id)?;
+        let container_id = manifest.create_container_id(&svc.name);
+        manifest.write_lock(package_path, &deployment_id, &container_id)?;
 
         println!("Deploying service '{}'...", container_id);
-
-        deploy_service(&svc).await?;
+        deploy_service(&svc, &deployment_id, &container_id).await?;
 
         println!("Service '{}' has been sucess to deploy", container_id);
     }
@@ -45,23 +57,30 @@ pub async fn undeploy(package_path: &str) -> Result<(), Box<dyn std::error::Erro
     let lock = Manifest::load_from_lock(pkg_dir).map_err(|e| format!("Manifest error: {}", e))?;
     // let frozen_manifest = &lock.frozen_manifest;
 
-    for (service_name, _) in &lock.frozen_manifest.service {
-        println!("Killing service '{}'...", service_name);
+    println!("getting database info...");
+    get_services_by_deployment(&lock.deployment_id)
+        .map_err(|e| format!("failed to get deployment database, error: {}", e))?;
+
+    for container_id in &lock.active_containers {
+        println!("Killing service '{}'...", container_id);
         let signal = &format!("SIGKILL").to_string();
-        if let Err(e) = runtime_kill(service_name, signal).await {
+        if let Err(e) = runtime_kill(container_id, signal).await {
             println!("Failed to kill service: {}", e);
         } else {
-            println!("service {} has been killed.", service_name);
+            println!("service {} has been killed.", container_id);
         }
 
-        println!("Deleting service '{}'...", service_name);
-        if let Err(e) = runtime_delete(service_name).await {
+        println!("Deleting service '{}'...", container_id);
+        if let Err(e) = runtime_delete(container_id).await {
             println!("failed to deleting service: {}", e);
         } else {
-            println!("sucess to deleting service: {}", service_name);
+            println!("sucess to deleting service: {}", container_id);
         }
-
     }
+
+    println!("Cleaning deployment database...");
+    delete_deployment(&lock.deployment_id)
+        .map_err(|e| format!("failed to save deployment package, error: {}", e))?;
 
     let lock_path = pkg_dir.join(LOCK_FILE);
     if lock_path.exists() {
@@ -79,9 +98,11 @@ pub async fn undeploy(package_path: &str) -> Result<(), Box<dyn std::error::Erro
 
 async fn deploy_service(
     svc: &ValidatedService,
+    deployment_id: &str,
+    container_id: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("Preparing container network...");
-    let container_id = &svc.name;
+
     let service_net_config = NetworkConfig {
         mode: svc
             .config
@@ -136,6 +157,16 @@ async fn deploy_service(
             .spawn()
             .map_err(|e| format!("Failed to spawn command application: {}", e))?;
     }
+
+    save_service(
+        &container_id,
+        &deployment_id,
+        &svc.name,
+        &svc.config.image,
+        &service_net_config.ip_addres,
+        &service_net_config.port,
+    )
+    .map_err(|e| format!("failed to save deployment package, error: {}", e))?;
 
     Ok(())
 }
