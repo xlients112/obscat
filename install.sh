@@ -5,9 +5,7 @@ set -eu
 # KONFIGURASI REPO & VERSI
 # ==========================================
 OBSCAT_REPO="xlients112/obscat"
-YOUKI_REPO="youki-dev/youki"
-OBSCAT_VERSION="v0.1.3"
-YOUKI_VERSION="0.7.0"
+OBSCAT_VERSION="v0.2.0"
 INSTALL_DIR="/usr/local/bin"
 
 echo "Obscat container engine binary installer"
@@ -80,19 +78,7 @@ echo "Unzip obscat to ${INSTALL_DIR}..."
 $SUDO tar -xzf "${TMP_DIR}/${OBSCAT_TAR}" -C "$TMP_DIR"
 $SUDO install -m 755 "${TMP_DIR}/obscat" "${INSTALL_DIR}/obscat"
 $SUDO install -m 755 "${TMP_DIR}/obscatd" "${INSTALL_DIR}/obscatd"
-# ==========================================
-# 6. DOWNLOAD & EKSTRAK YOUKI
-# ==========================================
-# Format nama rilis resmi youki: youki-<versi>-<arch>-gnu.tar.gz
-YOUKI_TAR="youki-${YOUKI_VERSION}-${ARCH}-gnu.tar.gz"
-YOUKI_URL="https://github.com/${YOUKI_REPO}/releases/download/v${YOUKI_VERSION}/${YOUKI_TAR}"
 
-echo "Downloading youki v${YOUKI_VERSION} dari ${YOUKI_URL}..."
-curl -fL --progress-bar "$YOUKI_URL" -o "${TMP_DIR}/${YOUKI_TAR}"
-
-echo "Unzip youki to ${INSTALL_DIR}..."
-$SUDO tar -xzf "${TMP_DIR}/${YOUKI_TAR}" -C "$TMP_DIR"
-$SUDO install -m 755 "${TMP_DIR}/youki" "${INSTALL_DIR}/youki"
 
 # ==========================================
 # 7. VERIFIKASI INSTALASI

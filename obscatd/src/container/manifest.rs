@@ -7,7 +7,10 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::{log_error, utils::{LOCK_FILE, MANIFEST_FILE}};
+use crate::{
+    log_error,
+    utils::{LOCK_FILE, MANIFEST_FILE},
+};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Manifest {
@@ -43,9 +46,19 @@ pub struct ManifestLock {
 impl Manifest {
     pub async fn container_load(package_path: &Path) -> Result<Self, String> {
         let manifest_path = package_path.join(MANIFEST_FILE);
+        let lock_path = Path::new(package_path).join(LOCK_FILE);
+
+        if lock_path.exists() {
+            return Err(
+                log_error!("Deployment is already active. Try 'obscat undeploy' first!",).into(),
+            );
+        }
 
         if !manifest_path.exists() {
-            return Err(log_error!("obscat.toml is not found at {:?}.", package_path));
+            return Err(log_error!(
+                "obscat.toml is not found at {:?}.",
+                package_path
+            ));
         }
 
         let content = fs::read_to_string(&manifest_path)
@@ -101,7 +114,8 @@ impl Manifest {
         let content = fs::read_to_string(&lock_path)
             .map_err(|e| log_error!("Failed to read lockfile: {}", e))?;
 
-        toml::from_str::<ManifestLock>(&content).map_err(|e| log_error!("corrupted lockfile: {}", e))
+        toml::from_str::<ManifestLock>(&content)
+            .map_err(|e| log_error!("corrupted lockfile: {}", e))
     }
 
     pub fn create_container_id(&self) -> String {

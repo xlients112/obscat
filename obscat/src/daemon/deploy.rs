@@ -11,7 +11,6 @@ pub async fn daemon_deploy(
     client: &mut ContainerServiceClient<Channel>,
     package_path: &String,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    println!("Starting deploy container...");
 
     let raw_path = Path::new(package_path);
     let abs_path = if raw_path.is_absolute() {
@@ -31,10 +30,10 @@ pub async fn daemon_deploy(
     match client.deploy(request).await {
         Ok(response) => {
             let res = response.into_inner();
-            if res.sucess {
-                println!("Deploy request success\nmessage: {}", res.message);
-            } else {
-                println!("failed to send request\nmessage: {}", res.message);
+            if !res.sucess {
+                println!("{}", res.message);
+            } else if !res.message.is_empty() && res.message != "OK" {
+                println!("{}", res.message);
             }
         }
         Err(e) => {
@@ -70,10 +69,10 @@ pub async fn daemon_undeploy(
     match client.undeploy(request).await {
         Ok(response) => {
             let res = response.into_inner();
-            if res.sucess {
-                println!("Deploy request success\nmessage: {}", res.message);
-            } else {
-                println!("failed to send request\nmessage: {}", res.message);
+            if !res.sucess {
+                println!("{}", res.message);
+            } else if !res.message.is_empty() && res.message != "OK" {
+                println!("{}", res.message);
             }
         }
         Err(e) => {

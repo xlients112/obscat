@@ -10,7 +10,10 @@ use serde_json::{Value, json};
 use tokio::{fs, process::Command, time::sleep};
 
 use crate::{
-    internal_proto::NetworkConfig, log_error, log_success, runtime::{container_internal::container_cmd, network}, utils::{BUNDLE_PATH, IMAGES_PATH, LOGS_PATH, YOUKI_ROOT},
+    internal_proto::NetworkConfig,
+    log_error, log_success,
+    runtime::{container_internal::container_cmd, network},
+    utils::{BUNDLE_PATH, IMAGES_PATH, LOGS_PATH, YOUKI_ROOT},
 };
 // youki state
 #[derive(Debug, Deserialize)]
@@ -70,10 +73,9 @@ pub async fn runtime_spec(
     let output = spec.output().await?;
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
-        return Err(Box::<dyn std::error::Error + Send + Sync>::from(log_error!(
-            "Failed to create config.json\nError: {}",
-            err
-        )));
+        return Err(Box::<dyn std::error::Error + Send + Sync>::from(
+            log_error!("Failed to create config.json\nError: {}", err),
+        ));
     }
 
     // read json
@@ -168,7 +170,9 @@ async fn resolve_image(image: &str) -> Result<PathBuf, Box<dyn std::error::Error
     if !exists {
         return Err(log_error!(
             "Image '{}:{}' image not found in local store. Pull frist with `obscat image pull {}`.",
-            scope_image, tag, image
+            scope_image,
+            tag,
+            image
         )
         .into());
     }
@@ -279,7 +283,8 @@ pub async fn runtime_delete(
         let err = String::from_utf8_lossy(&output.stderr);
         return Err(log_error!(
             "failed to delete container {}\nError: {}",
-            container_id, err
+            container_id,
+            err
         )
         .into());
     }
@@ -342,7 +347,8 @@ pub async fn state(container_id: &str) -> Result<(), Box<dyn std::error::Error +
         let state_err = String::from_utf8_lossy(&state_output.stderr);
         log_error!(
             "Failed to state container: {} error\nError: {}",
-            container_id, state_err
+            container_id,
+            state_err
         );
     }
 
@@ -466,6 +472,8 @@ pub async fn container_start(
                             .arg(&bundle_path)
                             .arg(container_id)
                             .stdin(Stdio::null())
+                            .stdout(Stdio::null())
+                            .stderr(Stdio::null())
                             .output()
                             .await?;
 
@@ -473,11 +481,12 @@ pub async fn container_start(
                             let err = String::from_utf8_lossy(&create_out.stderr);
                             return Err(log_error!(
                                 "Failed to recreate container '{}': {}",
-                                container_id, err
+                                container_id,
+                                err
                             )
                             .into());
                         }
-                    },
+                    }
                     _ => {}
                 }
             }
@@ -491,6 +500,7 @@ pub async fn container_start(
         .arg(container_id)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .output()
         .await?;
 
@@ -520,7 +530,8 @@ pub async fn runtime_kill(
     if output.status.success() {
         log_success!(
             "container: {} has been succes killed {}",
-            container_id, signal
+            container_id,
+            signal
         );
     } else {
         let err = String::from_utf8_lossy(&output.stderr);

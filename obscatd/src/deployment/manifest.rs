@@ -8,7 +8,10 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::{log_error, utils::{LOCK_FILE, MANIFEST_FILE}};
+use crate::{
+    log_error,
+    utils::{LOCK_FILE, MANIFEST_FILE},
+};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Manifest {
@@ -48,6 +51,13 @@ static CONTAINER_COUNTER: AtomicU32 = AtomicU32::new(0);
 impl Manifest {
     pub async fn load(package_path: &Path) -> Result<Self, String> {
         let manifest_path = package_path.join(MANIFEST_FILE);
+        let lock_path = Path::new(package_path).join(LOCK_FILE);
+
+        if lock_path.exists() {
+            return Err(
+                log_error!("Deployment is already active. Try 'obscat undeploy' first!",).into(),
+            );
+        }
 
         if !manifest_path.exists() {
             return Err(log_error!(
@@ -138,13 +148,17 @@ impl Manifest {
         }
     }
 
-    pub fn write_lock(&self, package_path: &str, deployment_id: &str, container_id: &str) -> Result<(), String> {
+    pub fn write_lock(
+        &self,
+        package_path: &str,
+        deployment_id: &str,
+        container_id: &str,
+    ) -> Result<(), String> {
         let lock_path = Path::new(package_path).join(LOCK_FILE);
 
         let mut lock = if lock_path.exists() {
             let content = fs::read_to_string(&lock_path)
                 .map_err(|e| log_error!("Failed to read lockfile: {}", e))?;
-
 
             toml::from_str::<ManifestLock>(&content).unwrap_or_else(|_| ManifestLock {
                 deployment_id: deployment_id.to_string(),
@@ -183,7 +197,8 @@ impl Manifest {
         let content = fs::read_to_string(&lock_path)
             .map_err(|e| log_error!("Failed to read lockfile: {}", e))?;
 
-        toml::from_str::<ManifestLock>(&content).map_err(|e| log_error!("corrupted lockfile: {}", e))
+        toml::from_str::<ManifestLock>(&content)
+            .map_err(|e| log_error!("corrupted lockfile: {}", e))
     }
 }
 

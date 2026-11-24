@@ -80,8 +80,9 @@ pub fn run_worker_container(
 
             //  container state
             StandardCmd::State(args) => {
-                let contianer = Container::load(root_path.join(&args.container_id))?;
-                println!("{}", serde_json::to_string_pretty(&contianer.state)?);
+                let mut container = Container::load(root_path.join(&args.container_id))?;
+                let _ = container.refresh_status();
+                println!("{}", serde_json::to_string_pretty(&container.state)?);
             }
         },
 
