@@ -440,59 +440,6 @@ pub async fn runtime_list() -> Result<String, Box<dyn std::error::Error + Send +
 pub async fn container_start(
     container_id: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let state_dir = Path::new(YOUKI_ROOT).join(&container_id);
-    // check status state
-    if state_dir.exists() {
-        let mut state = container_cmd()?;
-        state
-            .arg("--root")
-            .arg(YOUKI_ROOT)
-            .arg("state")
-            .arg(&container_id);
-
-        let state_out = state.output().await?;
-
-        if state_out.status.success() {
-            if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&state_out.stdout) {
-                match json.get("status").and_then(|s| s.as_str()) {
-                    Some("running") => {
-                        log_error!("Container '{}' is already running", container_id);
-                        return Ok(());
-                    }
-
-                    Some("stopped") => {
-                        let _ = container_cmd()?
-                            .args(["--root", YOUKI_ROOT, "delete", "--force", container_id])
-                            .output()
-                            .await?;
-
-                        let bundle_path = Path::new(BUNDLE_PATH).join(container_id);
-                        let create_out = container_cmd()?
-                            .args(["--root", YOUKI_ROOT, "create", "--bundle"])
-                            .arg(&bundle_path)
-                            .arg(container_id)
-                            .stdin(Stdio::null())
-                            .stdout(Stdio::null())
-                            .stderr(Stdio::null())
-                            .output()
-                            .await?;
-
-                        if !create_out.status.success() {
-                            let err = String::from_utf8_lossy(&create_out.stderr);
-                            return Err(log_error!(
-                                "Failed to recreate container '{}': {}",
-                                container_id,
-                                err
-                            )
-                            .into());
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-    }
-
     let output = container_cmd()?
         .arg("--root")
         .arg(YOUKI_ROOT)
