@@ -1,5 +1,8 @@
 use std::{
-    collections::HashMap, path::{Path, PathBuf}, process::Stdio, time::Duration,
+    collections::HashMap,
+    path::{Path, PathBuf},
+    process::Stdio,
+    time::Duration,
 };
 
 use serde::Deserialize;
@@ -7,9 +10,7 @@ use serde_json::{Value, json};
 use tokio::{fs, process::Command, time::sleep};
 
 use crate::{
-    internal_proto::NetworkConfig,
-    runtime::network,
-    utils::{BUNDLE_PATH, IMAGES_PATH, LOGS_PATH, YOUKI_ROOT},
+    internal_proto::NetworkConfig, log_error, log_success, runtime::{container_internal::container_cmd, network}, utils::{BUNDLE_PATH, IMAGES_PATH, LOGS_PATH, YOUKI_ROOT},
 };
 // youki state
 #[derive(Debug, Deserialize)]
@@ -34,16 +35,13 @@ struct ImageRecord {
 pub async fn get_container_pid(
     container_id: &str,
 ) -> Result<i32, Box<dyn std::error::Error + Send + Sync>> {
-    let mut cmd = Command::new("youki");
-    cmd.arg("--root")
-        .arg(YOUKI_ROOT)
-        .arg("state")
-        .arg(container_id);
+    let mut cmd = container_cmd()?;
+    cmd.args(["--root", YOUKI_ROOT, "state"]).arg(container_id);
 
-    let output = cmd.output().await?;
+    let output = &cmd.output().await?;
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
-        println!("Failed to get container PID\nError: {}", err);
+        log_error!("Failed to get container PID\nError: {}", err);
     }
 
     let json_str = String::from_utf8_lossy(&output.stdout);
@@ -52,7 +50,7 @@ pub async fn get_container_pid(
     if let Some(pid_num) = state_data.pid {
         Ok(pid_num)
     } else {
-        Err(format!(
+        Err(log_error!(
             "Container {} has no have pid active (die or not running)",
             container_id
         )
@@ -66,13 +64,13 @@ pub async fn runtime_spec(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let bundle = Path::new(BUNDLE_PATH).join(container_id);
 
-    let mut spec = Command::new("youki");
+    let mut spec = container_cmd()?;
     spec.arg("spec").current_dir(&bundle);
 
     let output = spec.output().await?;
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
-        return Err(Box::<dyn std::error::Error + Send + Sync>::from(format!(
+        return Err(Box::<dyn std::error::Error + Send + Sync>::from(log_error!(
             "Failed to create config.json\nError: {}",
             err
         )));
@@ -140,8 +138,6 @@ pub async fn runtime_spec(
 
     let ready_json = serde_json::to_string_pretty(&config)?;
     fs::write(&config_path, ready_json).await?;
-
-    println!("Success to create config.json");
     Ok(())
 }
 
@@ -162,7 +158,7 @@ async fn resolve_image(image: &str) -> Result<PathBuf, Box<dyn std::error::Error
     let index_path = Path::new(IMAGES_PATH).join("index.json");
     let content = fs::read_to_string(&index_path)
         .await
-        .map_err(|_| "Image not found or you not image pull before (index.json not found): try: obscat image pull frist")?;
+        .map_err(|_| log_error!("Image not found or you not image pull before (index.json not found): try: obscat image pull frist"))?;
 
     let records: Vec<ImageRecord> = serde_json::from_str(&content)?;
     let exists = records
@@ -170,7 +166,7 @@ async fn resolve_image(image: &str) -> Result<PathBuf, Box<dyn std::error::Error
         .any(|r| r.name == scope_image && r.tag == tag);
 
     if !exists {
-        return Err(format!(
+        return Err(log_error!(
             "Image '{}:{}' image not found in local store. Pull frist with `obscat image pull {}`.",
             scope_image, tag, image
         )
@@ -181,7 +177,7 @@ async fn resolve_image(image: &str) -> Result<PathBuf, Box<dyn std::error::Error
     let image_rootfs = Path::new(IMAGES_PATH).join(safe_dir_name).join("rootfs");
 
     if !fs::try_exists(&image_rootfs).await.unwrap_or(false) {
-        return Err(format!("rootfs directory '{}' is broken or missing.", image).into());
+        return Err(log_error!("rootfs directory '{}' is broken or missing.", image).into());
     }
 
     Ok(image_rootfs)
@@ -194,11 +190,10 @@ pub async fn runtime_create(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // setup container before create container
     if let Err(e) = network::network_config_setup(container_id, net_config).await {
-        eprintln!("Failed to setup network\nError: {}", e);
+        log_error!("Failed to setup network\nError: {}", e);
     }
 
     // create overlayFS dir
-    println!("Creating overlayFS directory...");
     let bundles = Path::new(BUNDLE_PATH).join(container_id);
     fs::create_dir_all(&bundles).await?;
     let lowerdir = resolve_image(image).await?;
@@ -211,7 +206,6 @@ pub async fn runtime_create(
     fs::create_dir_all(&mergeddir).await?;
 
     // mount overlayfs
-    println!("Mounting overlayFS...");
     let opts = format!(
         "lowerdir={},upperdir={},workdir={}",
         lowerdir.display(),
@@ -227,14 +221,13 @@ pub async fn runtime_create(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Gagal mount OverlayFS: {}", stderr.trim()).into());
+        return Err(log_error!("Failed to mount OverlayFS: {}", stderr.trim()).into());
     }
 
-    println!("Creating spec config.json for container..");
+    // creating spec for container
     runtime_spec(container_id).await?;
 
-    println!("creating container instance...");
-    let mut create = Command::new("youki");
+    let mut create = container_cmd()?;
     let create_out = create
         .arg("--root")
         .arg(YOUKI_ROOT)
@@ -249,12 +242,11 @@ pub async fn runtime_create(
         .await?;
 
     if create_out.success() {
-        println!("container has been succes created");
         match get_container_pid(container_id).await {
             Ok(pid) => {
-                println!("Container {} is created\nPID: {}", container_id, pid);
+                log_success!("Container {} is created\nPID: {}", container_id, pid);
                 if let Err(net_err) = network::connect_container_network(container_id, pid).await {
-                    println!(
+                    log_error!(
                         "Failed to connect network to container, but container has been still created\nError: {}",
                         net_err
                     );
@@ -271,14 +263,10 @@ pub async fn runtime_create(
 pub async fn runtime_delete(
     container_id: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    println!(
-        "Start deleting container from host\nContainerID: {}",
-        container_id
-    );
     let bundle = Path::new(BUNDLE_PATH).join(container_id);
     let merged_rootfs = bundle.join("rootfs");
 
-    let mut delete = Command::new("youki");
+    let mut delete = container_cmd()?;
     delete
         .arg("--root")
         .arg(YOUKI_ROOT)
@@ -289,7 +277,7 @@ pub async fn runtime_delete(
     let output = delete.output().await?;
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
-        return Err(format!(
+        return Err(log_error!(
             "failed to delete container {}\nError: {}",
             container_id, err
         )
@@ -301,7 +289,7 @@ pub async fn runtime_delete(
         let umount_out = Command::new("umount").arg(&merged_rootfs).output().await?;
 
         if umount_out.status.success() {
-            println!(
+            log_success!(
                 "OverlayFS in {:?} has been sucess to unmount.",
                 merged_rootfs
             );
@@ -309,17 +297,16 @@ pub async fn runtime_delete(
             let stderr = String::from_utf8_lossy(&umount_out.stderr);
             // Jika error bukan karena "not mounted", hentikan penghapusan demi keamanan data!
             if !stderr.contains("not mounted") {
-                println!(
+                log_error!(
                     "Failed unmount OverlayFS (canceled delete folder for security check): {}",
                     stderr.trim()
                 );
-                return Err(format!("umount Failed: {}", stderr.trim()).into());
+                return Err(log_error!("umount Failed: {}", stderr.trim()).into());
             }
         }
     }
 
     // clean network
-    println!("cleanup network interface..");
     if let Err(e) = network::clean_network(container_id).await {
         println!("Failed to cleaning network\nError: {}", e)
     }
@@ -330,20 +317,17 @@ pub async fn runtime_delete(
     }
 
     // clean log
-    println!("cleanup log file..");
     let log_path = format!("{}/{}", LOGS_PATH, container_id);
     if std::path::Path::new(&log_path).exists() {
         let _ = tokio::fs::remove_file(log_path).await;
-        println!("Log file has been cleanup.");
     }
 
-    println!("Sucess to delete container: {}", container_id);
     Ok(())
 }
 
 // runtime state
-pub async fn state(container_id: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let mut state = Command::new("youki");
+pub async fn state(container_id: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut state = container_cmd()?;
     state
         .arg("--root")
         .arg(YOUKI_ROOT)
@@ -356,7 +340,7 @@ pub async fn state(container_id: &str) -> Result<(), Box<dyn std::error::Error>>
         println!("Container status: {}", state_json);
     } else {
         let state_err = String::from_utf8_lossy(&state_output.stderr);
-        println!(
+        log_error!(
             "Failed to state container: {} error\nError: {}",
             container_id, state_err
         );
@@ -367,9 +351,8 @@ pub async fn state(container_id: &str) -> Result<(), Box<dyn std::error::Error>>
 
 // runtime list
 pub async fn runtime_list() -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-
     let mut status_map: HashMap<String, String> = HashMap::new();
-        let output = Command::new("youki")
+    let output = container_cmd()?
         .arg("--root")
         .arg(YOUKI_ROOT)
         .arg("list")
@@ -378,16 +361,26 @@ pub async fn runtime_list() -> Result<String, Box<dyn std::error::Error + Send +
 
     if output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
-        for line in stdout.lines().skip(1) { // skip header youki
-            let cols: Vec<&str> = line.split_whitespace().collect();
-            if cols.len() >= 3 {
-                status_map.insert(cols[0].to_string(), cols[2].to_string());
+        if let Ok(list) = serde_json::from_str::<Vec<serde_json::Value>>(&stdout) {
+            for c in list {
+                if let (Some(id), Some(status)) = (
+                    c.get("id").and_then(|v| v.as_str()),
+                    c.get("status").and_then(|v| v.as_str()),
+                ) {
+                    // Kapitalisasi huruf depan biar rapi (misal "running" -> "Running")
+                    let mut chars = status.chars();
+                    let formatted_status = match chars.next() {
+                        None => "Stopped".to_string(),
+                        Some(f) => f.to_uppercase().collect::<String>() + chars.as_str(),
+                    };
+                    status_map.insert(id.to_string(), formatted_status);
+                }
             }
         }
     }
 
     let items = crate::runtime::db::list_all_items()
-        .map_err(|e| format!("Failed to read containers from DB: {}", e))?;
+        .map_err(|e| log_error!("Failed to read containers from DB: {}", e))?;
 
     if items.is_empty() {
         return Ok("No containers found.\n".to_string());
@@ -412,8 +405,16 @@ pub async fn runtime_list() -> Result<String, Box<dyn std::error::Error + Send +
             .cloned()
             .unwrap_or_else(|| "Stopped".to_string());
 
-        let ip = if item.ip_address.trim().is_empty() { "-" } else { &item.ip_address };
-        let port = if item.port.trim().is_empty() { "-" } else { &item.port };
+        let ip = if item.ip_address.trim().is_empty() {
+            "-"
+        } else {
+            &item.ip_address
+        };
+        let port = if item.port.trim().is_empty() {
+            "-"
+        } else {
+            &item.port
+        };
 
         table.push_str(&format!(
             "{:<18} {:<22} {:<18} {:<10} {:<15} {}\n",
@@ -429,72 +430,84 @@ pub async fn runtime_list() -> Result<String, Box<dyn std::error::Error + Send +
     Ok(table)
 }
 
-// rountime run
-// pub async fn container_run(
-//     container_id: &str,
-//     log: &mut LogsCollector,
-// ) -> Result<(), Box<dyn std::error::Error>> {
-//     // deleted state in root youki folder
-//     let _ = Command::new("youki")
-//         .args(["--root", YOUKI_ROOT, "delete", container_id])
-//         .output()
-//         .await;
-
-//     let bundle = &format!("{}/{}", BUNDLE_PATH, container_id);
-//     let mut run = Command::new("youki");
-//     run.arg("--root")
-//         .arg(YOUKI_ROOT)
-//         .arg("run")
-//         .arg("--detach")
-//         .arg("--bundle")
-//         .arg(bundle)
-//         .arg(container_id)
-//         .stdin(Stdio::null())
-//         .stdout(Stdio::null())
-//         .stderr(Stdio::null());
-
-//     let output = run.output().await?;
-//     if output.status.success() {
-//         log.info("succes to run container\n");
-//     } else {
-//         let err = String::from_utf8_lossy(&output.stderr);
-//         log.error(format!(
-//             "failed to run container: {}\nError: {}",
-//             container_id, err
-//         ));
-//     }
-//     Ok(())
-// }
-
 // container start
 pub async fn container_start(
     container_id: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let output = Command::new("youki")
+    let state_dir = Path::new(YOUKI_ROOT).join(&container_id);
+    // check status state
+    if state_dir.exists() {
+        let mut state = container_cmd()?;
+        state
+            .arg("--root")
+            .arg(YOUKI_ROOT)
+            .arg("state")
+            .arg(&container_id);
+
+        let state_out = state.output().await?;
+
+        if state_out.status.success() {
+            if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&state_out.stdout) {
+                match json.get("status").and_then(|s| s.as_str()) {
+                    Some("running") => {
+                        log_error!("Container '{}' is already running", container_id);
+                        return Ok(());
+                    }
+
+                    Some("stopped") => {
+                        let _ = container_cmd()?
+                            .args(["--root", YOUKI_ROOT, "delete", "--force", container_id])
+                            .output()
+                            .await?;
+
+                        let bundle_path = Path::new(BUNDLE_PATH).join(container_id);
+                        let create_out = container_cmd()?
+                            .args(["--root", YOUKI_ROOT, "create", "--bundle"])
+                            .arg(&bundle_path)
+                            .arg(container_id)
+                            .stdin(Stdio::null())
+                            .output()
+                            .await?;
+
+                        if !create_out.status.success() {
+                            let err = String::from_utf8_lossy(&create_out.stderr);
+                            return Err(log_error!(
+                                "Failed to recreate container '{}': {}",
+                                container_id, err
+                            )
+                            .into());
+                        }
+                    },
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    let output = container_cmd()?
         .arg("--root")
         .arg(YOUKI_ROOT)
         .arg("start")
         .arg(container_id)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
         .output()
         .await?;
 
     if output.status.success() {
-        println!("Container '{}' has been started (start)", container_id);
+        log_success!("Container '{}' has been started (start)", container_id);
         Ok(())
     } else {
         let err = String::from_utf8_lossy(&output.stderr);
-        Err(format!("Failed to start container '{}': {}", container_id, err).into())
+        Err(log_error!("Failed to start container '{}': {},", container_id, err).into())
     }
 }
 
 pub async fn runtime_kill(
     container_id: &str,
     signal: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut kill = Command::new("youki");
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut kill = container_cmd()?;
     kill.arg("--root")
         .arg(YOUKI_ROOT)
         .arg("kill")
@@ -505,17 +518,17 @@ pub async fn runtime_kill(
 
     let output = kill.output().await?;
     if output.status.success() {
-        println!(
+        log_success!(
             "container: {} has been succes killed {}",
             container_id, signal
         );
     } else {
         let err = String::from_utf8_lossy(&output.stderr);
-        println!("failed to kill container: {}\nError: {}", container_id, err);
+        log_error!("failed to kill container: {}\nError: {}", container_id, err);
     }
 
     // update state
-    let mut state = Command::new("youki");
+    let mut state = container_cmd()?;
     state
         .arg("--root")
         .arg(YOUKI_ROOT)

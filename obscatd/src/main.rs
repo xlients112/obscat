@@ -16,8 +16,10 @@ use crate::internal_proto::{
     KillRequest, KillResponse, ListRequest, ListResponse, RunRequest, RunResponse, StateRequest,
     StateResponse, StreamLogsRequest, StreamLogsResponse, UndeployRequest, UndeployResponse,
 };
+use crate::runtime::container_internal::{ContainerCli, run_worker_container};
 use crate::runtime::logging::{init_global_capture, subscribe_logs};
 use crate::runtime::{db, init, internal, network};
+use clap::{Parser, Subcommand};
 use internal_proto::container_service_server::{ContainerService, ContainerServiceServer};
 use tokio_stream::StreamExt;
 use tokio_stream::wrappers::BroadcastStream;
@@ -29,6 +31,19 @@ type LogStream = std::pin::Pin<
 
 #[derive(Debug, Default)]
 pub struct ObscatService {}
+
+// worker
+#[derive(Parser, Debug)]
+struct AppCli {
+    #[clap(subcommand)]
+    command: Option<AppSubcommand>,
+}
+#[derive(Subcommand, Debug)]
+enum AppSubcommand {
+    #[clap(name = "__worker", hide = true)]
+    Worker(ContainerCli),
+}
+
 #[tonic::async_trait]
 impl ContainerService for ObscatService {
     type StreamLogsStream = LogStream;
@@ -211,8 +226,24 @@ impl ContainerService for ObscatService {
     }
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+
+fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let cli = AppCli::parse();
+
+    // calling singgle thread worker
+    if let Some(AppSubcommand::Worker(worker_cli)) = cli.command {
+        return run_worker_container(worker_cli);
+    }
+
+    // return tokio multi thread
+    tokio::runtime::Builder::new_multi_thread()
+    .enable_all()
+    .build()?
+    .block_on(tokio_main())
+}
+
+
+async fn tokio_main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // debug capture
     let _ = init_global_capture();
     // init network
@@ -227,7 +258,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // init database
     db::con::init_db("/var/lib/obscatd/state.db")
-        .await.expect("Failed to initialized database SQLite");
+        .await
+        .expect("Failed to initialized database SQLite");
 
     // grpc server
     let addr = "0.0.0.0:5005".parse()?;

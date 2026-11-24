@@ -3,7 +3,8 @@ use std::path::Path;
 // use crate::grpcutils;
 use crate::obscat_proto::container_service_client::ContainerServiceClient;
 use crate::obscat_proto::{
-    CreateRequest, DeleteRequest, KillRequest, ListRequest, RunRequest, StateRequest, StreamLogsRequest,
+    CreateRequest, DeleteRequest, KillRequest, ListRequest, RunRequest, StateRequest,
+    StreamLogsRequest,
 };
 use tonic::{Request, transport::Channel};
 
@@ -48,10 +49,10 @@ pub async fn daemon_create(
     match client.create(request).await {
         Ok(response) => {
             let res = response.into_inner();
-            if res.sucess {
-                println!("create request success\nmessage: {}", res.message);
-            } else {
-                println!("failed to send request\nmessage: {}", res.message);
+            if !res.sucess {
+                println!("{}", res.message);
+            } else if !res.message.is_empty() && res.message != "OK" {
+                println!("{}", res.message);
             }
         }
         Err(e) => {
@@ -87,10 +88,10 @@ pub async fn daemon_delete(
     match client.delete(request).await {
         Ok(response) => {
             let res = response.into_inner();
-            if res.sucess {
-                println!("success to send request\nmessage: {}", res.message)
-            } else {
-                println!("failed to send request\nmessage: {}", res.message)
+            if !res.sucess {
+                println!("{}", res.message);
+            } else if !res.message.is_empty() && res.message != "OK" {
+                println!("{}", res.message);
             }
         }
         Err(e) => {
@@ -112,10 +113,10 @@ pub async fn daemon_state(
     match client.state(request).await {
         Ok(response) => {
             let res = response.into_inner();
-            if res.sucess {
-                println!("success to send request\nmessage: {}", res.message)
-            } else {
-                println!("failed to send request\nmessage: {}", res.message)
+            if !res.sucess {
+                println!("{}", res.message);
+            } else if !res.message.is_empty() && res.message != "OK" {
+                println!("{}", res.message);
             }
         }
         Err(e) => {
@@ -159,10 +160,10 @@ pub async fn daemon_run(
     match client.run(request).await {
         Ok(response) => {
             let res = response.into_inner();
-            if res.sucess {
-                println!("success to send request\nmessage: {}", res.message)
-            } else {
-                println!("failed to send request\nmessage: {}", res.message)
+            if !res.sucess {
+                println!("{}", res.message);
+            } else if !res.message.is_empty() && res.message != "OK" {
+                println!("{}", res.message);
             }
         }
         Err(e) => {
@@ -186,10 +187,10 @@ pub async fn daemon_kill(
     match client.kill(request).await {
         Ok(response) => {
             let res = response.into_inner();
-            if res.sucess {
-                println!("success to send request\nmessage: {}", res.message)
-            } else {
-                println!("failed to send request\nmessage: {}", res.message)
+            if !res.sucess {
+                println!("{}", res.message);
+            } else if !res.message.is_empty() && res.message != "OK" {
+                println!("{}", res.message);
             }
         }
         Err(e) => {

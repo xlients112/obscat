@@ -7,7 +7,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::utils::{LOCK_FILE, MANIFEST_FILE};
+use crate::{log_error, utils::{LOCK_FILE, MANIFEST_FILE}};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Manifest {
@@ -45,14 +45,14 @@ impl Manifest {
         let manifest_path = package_path.join(MANIFEST_FILE);
 
         if !manifest_path.exists() {
-            return Err(format!("obscat.toml is not found at {:?}.", package_path));
+            return Err(log_error!("obscat.toml is not found at {:?}.", package_path));
         }
 
         let content = fs::read_to_string(&manifest_path)
-            .map_err(|e| format!("failed to read manifest file\nerror: {}", e))?;
+            .map_err(|e| log_error!("failed to read manifest file\nerror: {}", e))?;
 
         let manifest: Manifest = toml::from_str(&content)
-            .map_err(|e| format!("failed to read manifest file\nerror: {}", e))?;
+            .map_err(|e| log_error!("failed to read manifest file\nerror: {}", e))?;
 
         Ok(manifest)
     }
@@ -62,7 +62,7 @@ impl Manifest {
 
         let mut lock = if lock_path.exists() {
             let content = fs::read_to_string(&lock_path)
-                .map_err(|e| format!("Failed to read lockfile: {}", e))?;
+                .map_err(|e| log_error!("Failed to read lockfile: {}", e))?;
 
             toml::from_str::<ManifestLock>(&content).unwrap_or_else(|_| ManifestLock {
                 container_id: container_id.to_string(),
@@ -83,10 +83,10 @@ impl Manifest {
 
         let tmp_path = Path::new(package_path).join(".obscat.lock.tmp");
         let toml_str = toml::to_string_pretty(&lock)
-            .map_err(|e| format!("Failed to serialize lockfile: {}", e))?;
+            .map_err(|e| log_error!("Failed to serialize lockfile: {}", e))?;
 
-        fs::write(&tmp_path, toml_str).map_err(|e| format!("error: {}", e))?;
-        fs::rename(&tmp_path, &lock_path).map_err(|e| format!("Failed to rename {}", e))?;
+        fs::write(&tmp_path, toml_str).map_err(|e| log_error!("error: {}", e))?;
+        fs::rename(&tmp_path, &lock_path).map_err(|e| log_error!("Failed to rename {}", e))?;
 
         Ok(())
     }
@@ -95,13 +95,13 @@ impl Manifest {
         let lock_path = package_path.join(LOCK_FILE);
 
         if !lock_path.exists() {
-            return Err(format!("No active deployment lockfile found."));
+            return Err(log_error!("No active deployment lockfile found."));
         }
 
         let content = fs::read_to_string(&lock_path)
-            .map_err(|e| format!("Failed to read lockfile: {}", e))?;
+            .map_err(|e| log_error!("Failed to read lockfile: {}", e))?;
 
-        toml::from_str::<ManifestLock>(&content).map_err(|e| format!("corrupted lockfile: {}", e))
+        toml::from_str::<ManifestLock>(&content).map_err(|e| log_error!("corrupted lockfile: {}", e))
     }
 
     pub fn create_container_id(&self) -> String {

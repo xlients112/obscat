@@ -1,34 +1,92 @@
-use std::{os::fd::FromRawFd, sync::OnceLock};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use tokio::{sync::broadcast};
+use std::{os::fd::FromRawFd, sync::OnceLock};
+use tokio::sync::broadcast;
 
-// #[derive(Default, Clone)]
-// pub struct LogsCollector {
-//     lines: Vec<String>,
-// }
+pub const RESET: &str = "\x1b[0m";
+pub const BOLD: &str = "\x1b[1m";
+pub const DIM: &str = "\x1b[2m";
 
-// impl LogsCollector {
-//     pub fn new() -> Self {
-//         Self { lines: Vec::new() }
-//     }
+pub const CYAN: &str = "\x1b[36m";
+pub const GREEN: &str = "\x1b[32m";
+pub const YELLOW: &str = "\x1b[33m";
+pub const RED: &str = "\x1b[31m";
 
-//     pub fn info(&mut self, msg: impl AsRef<str>) {
-//         let text = msg.as_ref();
-//         println!("{}", text);
-//         self.lines.push(text.to_string());
-//     }
+#[macro_export]
+macro_rules! log_info {
+    ($($arg:tt)*) => {
+        println!(
+            "{}{}[OBSCAT]{} {}",
+            $crate::runtime::logging::BOLD,
+            $crate::runtime::logging::CYAN,
+            $crate::runtime::logging::RESET,
+            format!($($arg)*)
+        )
+    };
+}
 
-//     pub fn error(&mut self, msg: impl AsRef<str>) {
-//         let text = format!("ERROR: {}", msg.as_ref());
-//         println!("{}", text);
-//         self.lines.push(text.to_string());
-//     }
+#[macro_export]
+macro_rules! log_success {
+    ($($arg:tt)*) => {
+        println!(
+            "{}{}[OBSCAT]{} {}✔{} {}",
+            $crate::runtime::logging::BOLD,
+            $crate::runtime::logging::GREEN,
+            $crate::runtime::logging::RESET,
+            $crate::runtime::logging::GREEN,
+            $crate::runtime::logging::RESET,
+            format!($($arg)*)
+        )
+    };
+}
 
-//     pub fn flush(&self) -> String {
-//         self.lines.join("\n")
-//     }
-// }
+#[macro_export]
+macro_rules! log_warn {
+    ($($arg:tt)*) => {
+        println!(
+            "{}{}[OBSCAT]{} {}⚠ {}{}",
+            $crate::runtime::logging::BOLD,
+            $crate::runtime::logging::CYAN,
+            $crate::runtime::logging::RESET,
+            $crate::runtime::logging::YELLOW,
+            format!($($arg)*),
+            $crate::runtime::logging::RESET
+        )
+    };
+}
+
+#[macro_export]
+macro_rules! log_error {
+    ($($arg:tt)*) => {{
+        let msg = format!($($arg)*);
+        eprintln!(
+            "{}{}[OBSCAT]{} {}✖ {}{}",
+            $crate::runtime::logging::BOLD,
+            $crate::runtime::logging::RED,
+            $crate::runtime::logging::RESET,
+            $crate::runtime::logging::RED,
+            msg,
+            $crate::runtime::logging::RESET
+        );
+        msg
+    }};
+}
+
+#[macro_export]
+macro_rules! log_step {
+    ($id:expr, $($arg:tt)*) => {
+        println!(
+            "{}{}[OBSCAT]{} {}[{}]{} {}",
+            $crate::runtime::logging::BOLD,
+            $crate::runtime::logging::CYAN,
+            $crate::runtime::logging::RESET,
+            $crate::runtime::logging::DIM,
+            $id,
+            $crate::runtime::logging::RESET,
+            format!($($arg)*)
+        )
+    };
+}
 
 // debug capture
 static LOG_TX: OnceLock<broadcast::Sender<String>> = OnceLock::new();

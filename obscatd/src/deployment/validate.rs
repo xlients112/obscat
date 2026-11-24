@@ -3,8 +3,7 @@ use std::path::{Path, PathBuf};
 use tokio::fs;
 
 use crate::{
-    deployment::manifest::{Manifest, ServiceConfig},
-    utils::IMAGES_PATH,
+    deployment::manifest::{Manifest, ServiceConfig}, log_error, utils::IMAGES_PATH,
 };
 
 #[derive(Debug, Clone)]
@@ -37,14 +36,14 @@ pub async fn validate_package(
     manifest: &Manifest,
 ) -> Result<Vec<ValidatedService>, String> {
     if !package_dir.exists() || !package_dir.is_dir() {
-        return Err(format!("Directory {:?} is invalid", package_dir));
+        return Err(log_error!("Directory {:?} is invalid", package_dir));
     }
 
     let mut validate_service = Vec::new();
 
     for (service_name, config) in &manifest.service {
         if !config.destination.starts_with('/') {
-            return Err(format!(
+            return Err(log_error!(
                 "Service '{}': destination must be '/' in frist",
                 service_name
             ));
@@ -52,7 +51,7 @@ pub async fn validate_package(
 
         if let Some(ref port_map) = config.ports {
             if !port_map.is_empty() && !port_map.contains(':') {
-                return Err(format!(
+                return Err(log_error!(
                     "Service '{}': format ports '{}' is invalid (use 'host_port:container_port', example: '8080:80')",
                     service_name, port_map
                 ));
@@ -61,7 +60,7 @@ pub async fn validate_package(
 
         let source_dir = config.resolve_source_dir(package_dir, service_name);
         if !source_dir.is_dir() {
-            return Err(format!(
+            return Err(log_error!(
                 "Service '{}': folder is not found at {:?}",
                 service_name, source_dir
             ));
@@ -69,7 +68,7 @@ pub async fn validate_package(
 
         let image_rootfs = resolve_image_rootfs(&config.image);
         if !fs::try_exists(&image_rootfs).await.unwrap_or(false) {
-            return Err(format!(
+            return Err(log_error!(
                 "Service '{}': image '{}' not found. run it frist 'obscat image pull {}'",
                 service_name, config.image, config.image
             ));

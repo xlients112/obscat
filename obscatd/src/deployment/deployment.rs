@@ -3,14 +3,13 @@ use std::{
     process::Stdio,
 };
 use tokio::fs;
-use tokio::process::Command;
 
 use crate::{
     deployment::{
         manifest::Manifest,
         validate::{ValidatedService, validate_package},
-    }, internal_proto::NetworkConfig, runtime::{
-        db::deployment::{
+    }, internal_proto::NetworkConfig, log_error, log_info, log_success, runtime::{
+        container_internal::container_cmd, db::deployment::{
             delete_deployment, get_services_by_deployment, save_deployment, save_service,
         }, internal::{container_start, runtime_create, runtime_delete, runtime_kill}, network,
     }, utils::{BUNDLE_PATH, LOCK_FILE, YOUKI_ROOT},
@@ -20,33 +19,33 @@ pub async fn deploy(package_path: &str) -> Result<(), Box<dyn std::error::Error 
     let pkg_dir = Path::new(package_path);
     // let lock_path = format!("{}/{}", package_path, LOCK_FILE);
 
-    println!("Reading manifest in {:?}", pkg_dir);
+    log_info!("Reading manifest in {:?}", pkg_dir);
     let manifest = Manifest::load(pkg_dir)
         .await
-        .map_err(|e| format!("Manifest error: {}", e))?;
+        .map_err(|e| log_error!("Manifest error: {}", e))?;
 
-    println!("Validating package and dependention...");
+    log_info!("Validating package and dependention...");
     let validated_services = validate_package(pkg_dir, &manifest)
         .await
-        .map_err(|e| format!("Failed to validate: {}", e))?;
+        .map_err(|e| log_error!("Failed to validate: {}", e))?;
 
     let deployment_id = manifest.create_deployment_id();
-    println!("saving package info to database.");
+    log_info!("saving package info to database.");
     save_deployment(
         &deployment_id,
         &manifest.package.name,
         &manifest.package.version,
     )
-    .map_err(|e| format!("failed to save deployment database, error: {}", e))?;
+    .map_err(|e| log_error!("failed to save deployment database, error: {}", e))?;
 
     for svc in validated_services {
         let container_id = manifest.create_container_id(&svc.name);
         manifest.write_lock(package_path, &deployment_id, &container_id)?;
 
-        println!("Deploying service '{}'...", container_id);
+        log_info!("Deploying service '{}'...", container_id);
         deploy_service(&svc, &deployment_id, &container_id).await?;
 
-        println!("Service '{}' has been sucess to deploy", container_id);
+        log_success!("Service '{}' has been sucess to deploy", container_id);
     }
 
     Ok(())
@@ -54,41 +53,41 @@ pub async fn deploy(package_path: &str) -> Result<(), Box<dyn std::error::Error 
 
 pub async fn undeploy(package_path: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let pkg_dir = Path::new(package_path);
-    let lock = Manifest::load_from_lock(pkg_dir).map_err(|e| format!("Manifest error: {}", e))?;
+    let lock = Manifest::load_from_lock(pkg_dir).map_err(|e| log_error!("Manifest error: {}", e))?;
     // let frozen_manifest = &lock.frozen_manifest;
 
-    println!("getting database info...");
+    log_info!("getting database info...");
     get_services_by_deployment(&lock.deployment_id)
-        .map_err(|e| format!("failed to get deployment database, error: {}", e))?;
+        .map_err(|e| log_error!("failed to get deployment database, error: {}", e))?;
 
     for container_id in &lock.active_containers {
-        println!("Killing service '{}'...", container_id);
+        log_info!("Killing service '{}'...", container_id);
         let signal = &format!("SIGKILL").to_string();
         if let Err(e) = runtime_kill(container_id, signal).await {
-            println!("Failed to kill service: {}", e);
+            log_error!("Failed to kill service: {}", e);
         } else {
-            println!("service {} has been killed.", container_id);
+            log_info!("service {} has been killed.", container_id);
         }
 
-        println!("Deleting service '{}'...", container_id);
+        log_info!("Deleting service '{}'...", container_id);
         if let Err(e) = runtime_delete(container_id).await {
-            println!("failed to deleting service: {}", e);
+            log_error!("failed to deleting service: {}", e);
         } else {
-            println!("sucess to deleting service: {}", container_id);
+            log_info!("sucess to deleting service: {}", container_id);
         }
     }
 
-    println!("Cleaning deployment database...");
+    log_info!("Cleaning deployment database...");
     delete_deployment(&lock.deployment_id)
-        .map_err(|e| format!("failed to save deployment package, error: {}", e))?;
+        .map_err(|e| log_error!("failed to save deployment package, error: {}", e))?;
 
     let lock_path = pkg_dir.join(LOCK_FILE);
     if lock_path.exists() {
         std::fs::remove_file(&lock_path)
-            .map_err(|e| format!("Failed to remove lockfile: {}", e))?;
+            .map_err(|e| log_error!("Failed to remove lockfile: {}", e))?;
     }
 
-    println!(
+    log_success!(
         "All services in deployment '{}' have been successfully undeployed.",
         package_path
     );
@@ -101,7 +100,7 @@ async fn deploy_service(
     deployment_id: &str,
     container_id: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    println!("Preparing container network...");
+    log_info!("Preparing container network...");
 
     let service_net_config = NetworkConfig {
         mode: svc
@@ -113,6 +112,7 @@ async fn deploy_service(
         port: svc.config.ports.clone().unwrap_or_default(),
     };
 
+    log_info!("Creating container instance...");
     runtime_create(container_id, &svc.config.image, &service_net_config).await?;
 
     let rootfs_dir = PathBuf::from(BUNDLE_PATH).join(container_id).join("rootfs");
@@ -121,21 +121,21 @@ async fn deploy_service(
     let target_app_dir = rootfs_dir.join(clean_dest);
     fs::create_dir_all(&target_app_dir).await?;
 
-    println!(
+    log_info!(
         "Copying application {:?} to {:?}...",
         svc.source_dir, target_app_dir
     );
     copy_dir_recursive(&svc.source_dir, &target_app_dir).await?;
 
-    println!("Turn on contianer '{}'...", container_id);
+    log_info!("Turn on contianer '{}'...", container_id);
     container_start(container_id)
         .await
         .map_err(|e| e.to_string())?;
 
     if !svc.config.command.is_empty() {
-        println!("Running user application: {:?}", svc.config.command);
+        log_info!("Running user application: {:?}", svc.config.command);
 
-        let mut exec_cmd = Command::new("youki");
+        let mut exec_cmd = container_cmd()?;
         exec_cmd.arg("--root").arg(YOUKI_ROOT).arg("exec");
 
         if let Some(ref workdir) = svc.config.workdir {
@@ -155,7 +155,7 @@ async fn deploy_service(
 
         exec_cmd
             .spawn()
-            .map_err(|e| format!("Failed to spawn command application: {}", e))?;
+            .map_err(|e| log_error!("Failed to spawn command application: {}", e))?;
     }
 
     let final_ip =
@@ -169,7 +169,7 @@ async fn deploy_service(
         &final_ip,
         &service_net_config.port,
     )
-    .map_err(|e| format!("failed to save deployment package, error: {}", e))?;
+    .map_err(|e| log_error!("failed to save deployment package, error: {}", e))?;
 
     Ok(())
 }
