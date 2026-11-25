@@ -126,12 +126,13 @@ fn handle_exec(args: Exec, root_path: PathBuf) -> Result<(), Box<dyn Error + Sen
         .with_env(args.env.into_iter().collect())
         .with_process(args.process.as_ref())
         .with_no_new_privs(args.no_new_privs)
-        .with_container_args(args.command.clone());
+        .with_container_args(args.command.clone())
+        .build()?;
 
-    //     if !args.detach {
-    //     match waitpid(pid, None)? {
-    //         WaitStatus::Exited(_, code) if code != 0 => std::process::exit(code),
-    //         WaitStatus::Signaled(_, sig, _) => std::process::exit(128 + sig as i32),
+    // if !args.detach {
+    //     match nix::sys::wait::waitpid(pid, None)? {
+    //         nix::sys::wait::WaitStatus::Exited(_, code) if code != 0 => std::process::exit(code),
+    //         nix::sys::wait::WaitStatus::Signaled(_, sig, _) => std::process::exit(128 + sig as i32),
     //         _ => {}
     //     }
     // }
