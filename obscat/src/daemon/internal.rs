@@ -3,8 +3,8 @@ use std::path::Path;
 // use crate::grpcutils;
 use crate::obscat_proto::container_service_client::ContainerServiceClient;
 use crate::obscat_proto::{
-    CreateRequest, DeleteRequest, KillRequest, ListRequest, RunRequest, StateRequest,
-    StreamLogsRequest,
+    CreateRequest, DeleteRequest, KillRequest, ListRequest, RestartRequest, RunRequest,
+    StateRequest, StreamLogsRequest,
 };
 use tonic::{Request, transport::Channel};
 
@@ -123,6 +123,31 @@ pub async fn daemon_state(
             eprintln!("GRPC Connection failes\nError: {}", e.message());
         }
     }
+    Ok(())
+}
+
+pub async fn daemon_restart(
+    client: &mut ContainerServiceClient<Channel>,
+    container_id: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let request = Request::new(RestartRequest {
+        container_id: container_id.to_string(),
+    });
+
+    match client.restart(request).await {
+        Ok(response) => {
+            let res = response.into_inner();
+            if !res.sucess {
+                println!("{}", res.message);
+            } else if !res.message.is_empty() && res.message != "OK" {
+                println!("{}", res.message);
+            }
+        }
+        Err(e) => {
+            eprintln!("GRPC Connection failes\nError: {}", e.message());
+        }
+    }
+
     Ok(())
 }
 

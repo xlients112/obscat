@@ -8,11 +8,18 @@ use crate::{
     deployment::{
         manifest::Manifest,
         validate::{ValidatedService, validate_package},
-    }, internal_proto::NetworkConfig, log_error, log_info, log_success, runtime::{
-        container_internal::container_cmd, db::deployment::{
+    },
+    internal_proto::NetworkConfig,
+    log_error, log_info, log_success,
+    runtime::{
+        container_internal::container_cmd,
+        db::deployment::{
             delete_deployment, get_services_by_deployment, save_deployment, save_service,
-        }, internal::{container_start, runtime_create, runtime_delete, runtime_kill}, network,
-    }, utils::{BUNDLE_PATH, LOCK_FILE, YOUKI_ROOT},
+        },
+        internal::{container_start, runtime_create, runtime_delete, runtime_kill},
+        network,
+    },
+    utils::{BUNDLE_PATH, LOCK_FILE, YOUKI_ROOT},
 };
 
 pub async fn deploy(package_path: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -40,10 +47,16 @@ pub async fn deploy(package_path: &str) -> Result<(), Box<dyn std::error::Error 
 
     for svc in validated_services {
         let container_id = manifest.create_container_id(&svc.name);
-        manifest.write_lock(package_path, &deployment_id, &container_id)?;
+        let deploy_lock = Path::new(package_path).join(LOCK_FILE);
+        let bundle_lock = Path::new(BUNDLE_PATH).join(&container_id).join(LOCK_FILE);
 
+        manifest.write_lock(package_path, &deployment_id, &container_id)?;
         log_info!("Deploying service '{}'...", container_id);
         deploy_service(&svc, &deployment_id, &container_id).await?;
+        // copy lockfile to bundles container id
+        if deploy_lock.exists() {
+            fs::copy(deploy_lock, bundle_lock).await?;
+        }
 
         log_success!("Service '{}' has been sucess to deploy", container_id);
     }
@@ -53,7 +66,8 @@ pub async fn deploy(package_path: &str) -> Result<(), Box<dyn std::error::Error 
 
 pub async fn undeploy(package_path: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let pkg_dir = Path::new(package_path);
-    let lock = Manifest::load_from_lock(pkg_dir).map_err(|e| log_error!("Manifest error: {}", e))?;
+    let lock =
+        Manifest::load_from_lock(pkg_dir).map_err(|e| log_error!("Manifest error: {}", e))?;
     // let frozen_manifest = &lock.frozen_manifest;
 
     log_info!("getting database info...");
@@ -123,7 +137,8 @@ async fn deploy_service(
 
     log_info!(
         "Copying application {:?} to {:?}...",
-        svc.source_dir, target_app_dir
+        svc.source_dir,
+        target_app_dir
     );
     copy_dir_recursive(&svc.source_dir, &target_app_dir).await?;
 
@@ -158,8 +173,7 @@ async fn deploy_service(
             .map_err(|e| log_error!("Failed to spawn command application: {}", e))?;
     }
 
-    let final_ip =
-        network::allocated_ip(container_id, &service_net_config.ip_addres);
+    let final_ip = network::allocated_ip(container_id, &service_net_config.ip_addres);
 
     save_service(
         &container_id,

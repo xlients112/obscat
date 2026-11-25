@@ -4,6 +4,7 @@ pub mod internal_proto {
 
 pub mod container;
 pub mod deployment;
+pub mod supervisor;
 pub mod grpcutils;
 pub mod runtime;
 pub mod utils;
@@ -12,13 +13,12 @@ pub mod utils;
 use crate::container::create::{container_create, container_delete};
 use crate::deployment::deployment::{deploy, undeploy};
 use crate::internal_proto::{
-    CreateRequest, CreateResponse, DeleteRequest, DeleteResponse, DeployRequest, DeployResponse,
-    KillRequest, KillResponse, ListRequest, ListResponse, RunRequest, RunResponse, StateRequest,
-    StateResponse, StreamLogsRequest, StreamLogsResponse, UndeployRequest, UndeployResponse,
+    CreateRequest, CreateResponse, DeleteRequest, DeleteResponse, DeployRequest, DeployResponse, KillRequest, KillResponse, ListRequest, ListResponse, RestartRequest, RestartResponse, RunRequest, RunResponse, StateRequest, StateResponse, StreamLogsRequest, StreamLogsResponse, UndeployRequest, UndeployResponse,
 };
 use crate::runtime::container_internal::{ContainerCli, run_worker_container};
 use crate::runtime::logging::{init_global_capture, subscribe_logs};
 use crate::runtime::{db, init, internal, network};
+use crate::supervisor::restart::restart;
 use clap::{Parser, Subcommand};
 use internal_proto::container_service_server::{ContainerService, ContainerServiceServer};
 use tokio_stream::StreamExt;
@@ -148,6 +148,28 @@ impl ContainerService for ObscatService {
         .unwrap_or_default();
 
         grpcutils::pack(DeleteResponse {
+            sucess: true,
+            message: "OK".to_string(),
+        })
+    }
+
+    // restart
+        async fn restart(
+        &self,
+        request: Request<RestartRequest>,
+    ) -> Result<Response<RestartResponse>, Status> {
+        let req = grpcutils::unpack(request);
+        let container_id = req.container_id.clone();
+
+        tokio::spawn(async move {
+            if let Err(e) = restart(&container_id).await {
+                eprintln!("Failed to run task restart container\nError: {}", e);
+            }
+        })
+        .await
+        .unwrap_or_default();
+
+        grpcutils::pack(RestartResponse {
             sucess: true,
             message: "OK".to_string(),
         })

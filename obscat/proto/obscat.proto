@@ -6,6 +6,7 @@ service ContainerService {
   rpc StreamLogs (StreamLogsRequest) returns (stream StreamLogsResponse);
   rpc Create (CreateRequest) returns (CreateResponse) {}
   rpc Delete (DeleteRequest) returns (DeleteResponse) {}
+  rpc Restart (RestartRequest) returns (RestartResponse) {}
   rpc State (StateRequest) returns (StateResponse) {}
   rpc List (ListRequest) returns (ListResponse) {}
   rpc Run (RunRequest) returns (RunResponse) {}
@@ -68,6 +69,16 @@ message DeleteRequest {
 
 message DeleteResponse {
   bool   sucess  = 1;
+  string message = 2;
+}
+
+// restart
+message RestartRequest {
+  string container_id = 1;
+}
+
+message RestartResponse {
+  bool sucess = 1;
   string message = 2;
 }
 

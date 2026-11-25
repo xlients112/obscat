@@ -49,6 +49,9 @@ pub enum Commands {
     Delete {
         id: String,
     },
+    Restart {
+        id: String
+    },
     State {
         id: String,
     },

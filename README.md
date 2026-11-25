@@ -14,7 +14,7 @@
 
 **Obscat container engine manager** fast, lightweight, zero build, and high-performance to create container and deployment can make 10+ container in one command on your system.
 
-Built with rust and integrated with the low-level OCI 'youki' backend, Deployment mode with zero-build with the OverlayFS system. 
+Built with rust and integrated libcontainer backend, Deployment mode with zero-build with the OverlayFS system.
 
 ---
 
@@ -31,7 +31,6 @@ Built with rust and integrated with the low-level OCI 'youki' backend, Deploymen
 ### Prerequisites
 * we supported linux only with Architecture for now
 * aarch64-gnu, x86_64-gnu
-* installing youki in the github youki-dev/youki, or manual in instalation section below.
 
 ### Installation
 
@@ -44,7 +43,6 @@ curl -fsSL https://raw.githubusercontent.com/xlients112/obscat/main/install.sh |
 ***BINARY***
 * obscat
 * obscatd
-* youki
 
 ## Usage Quickstart
 
@@ -193,10 +191,6 @@ obscat deploy /home/youruser/your-deployment-folder
 ### Undeploy
 Undeploy is automatic deleted your container service list instanly use by reading the lockfile manifest ``obscat.lock``, cleaning the mounting overlayFS, deleting the bundles folder and your source at inside your container, and clean the networking settings.
 
-> ### [CAUNTION]
-> **VERY IMPORTANT, obscat daemon undeployed by reading the obscat.lock, ensure you are not DELETING obscat.lock before undeployed!.**
-> The daemon will become confused if `obscat.lock` is missing; however, if you successfully perform an undeploy, `obscat.lock` will be automatically deleted.
-
 ***usage***
 inside deployment folder:
 ```bash
@@ -243,6 +237,6 @@ obscat undeploy your-deployment-folder
 Contributions are welcome! Whether it is reporting a bug, proposing new features, or submitting a pull request, your help makes `obscat` better.
 ---
 
-## 📄 License
+## License
 
 Distributed under the **GNU General-Public-License V3.0 LICENSE**. See `LICENSE` for more information.

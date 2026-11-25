@@ -3,12 +3,19 @@ use std::{
     process::Stdio,
 };
 
-use tokio::{fs};
+use tokio::fs;
 
 use crate::{
-    container::{manifest::Manifest, validate::resolve_image_rootfs}, internal_proto::NetworkConfig, log_error, log_info, log_success, runtime::{
-        container_internal::container_cmd, db, internal::{container_start, runtime_create, runtime_delete, runtime_kill}, network,
-    }, utils::{BUNDLE_PATH, LOCK_FILE, YOUKI_ROOT},
+    container::{manifest::Manifest, validate::resolve_image_rootfs},
+    internal_proto::NetworkConfig,
+    log_error, log_info, log_success,
+    runtime::{
+        container_internal::container_cmd,
+        db,
+        internal::{container_start, runtime_create, runtime_delete, runtime_kill},
+        network,
+    },
+    utils::{BUNDLE_PATH, LOCK_FILE, YOUKI_ROOT},
 };
 
 pub async fn container_create(
@@ -26,7 +33,9 @@ pub async fn container_create(
     if !fs::try_exists(&image_rootfs).await.unwrap_or(false) {
         log_error!(
             "Service '{}': image '{}' not found. run it frist 'obscat image pull {}'",
-            container_id, manifest.container.image, manifest.container.image
+            container_id,
+            manifest.container.image,
+            manifest.container.image
         );
     }
 
@@ -40,7 +49,6 @@ pub async fn container_create(
         ip_addres: manifest.container.ip_address.clone().unwrap_or_default(),
         port: manifest.container.ports.clone().unwrap_or_default(),
     };
-
 
     log_info!("Creating container...");
     runtime_create(
@@ -60,7 +68,8 @@ pub async fn container_create(
 
     log_info!(
         "Copying application {:?} to {:?}...",
-        manifest.container.source, target_app_dir
+        manifest.container.source,
+        target_app_dir
     );
     let resolved_source = if manifest.container.source.is_relative() {
         package_dir.join(&manifest.container.source)
@@ -100,8 +109,15 @@ pub async fn container_create(
             .map_err(|e| log_error!("Failed to spawn command application: {}", e))?;
     }
 
-    let final_ip = network::allocated_ip(&container_id, &service_net_config.ip_addres);
+    // copy lockfile to bundles
+    let create_lock = Path::new(package_path).join(LOCK_FILE);
+    let bundle_lock = Path::new(BUNDLE_PATH).join(&container_id).join(LOCK_FILE);
 
+    if create_lock.exists() {
+        fs::copy(create_lock, bundle_lock).await?;
+    }
+
+    let final_ip = network::allocated_ip(&container_id, &service_net_config.ip_addres);
     log_info!("Creating database for container {}", &container_id);
     db::container::save(
         &container_id,
@@ -121,7 +137,9 @@ pub async fn container_delete(
     package_path: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let pkg_dir = Path::new(package_path);
+
     let lock = Manifest::load_from_lock(pkg_dir).map_err(|e| format!("Manifest error: {}", e))?;
+
     let container_id = &lock.container_id;
 
     log_info!("Getting database information");
@@ -155,7 +173,8 @@ pub async fn container_delete(
 
     log_success!(
         "Container {} in '{}' have been successfully deleted.",
-        container_id, package_path
+        container_id,
+        package_path
     );
 
     Ok(())

@@ -144,7 +144,7 @@ pub async fn runtime_spec(
 }
 
 // runtime create
-async fn resolve_image(image: &str) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
+pub async fn resolve_image(image: &str) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
     let (repo, tag) = if let Some((r, t)) = image.split_once(':') {
         (r.to_string(), t.to_string())
     } else {
@@ -373,7 +373,6 @@ pub async fn runtime_list() -> Result<String, Box<dyn std::error::Error + Send +
                     c.get("id").and_then(|v| v.as_str()),
                     c.get("status").and_then(|v| v.as_str()),
                 ) {
-                    // Kapitalisasi huruf depan biar rapi (misal "running" -> "Running")
                     let mut chars = status.chars();
                     let formatted_status = match chars.next() {
                         None => "Stopped".to_string(),
@@ -424,7 +423,7 @@ pub async fn runtime_list() -> Result<String, Box<dyn std::error::Error + Send +
 
         table.push_str(&format!(
             "{:<18} {:<22} {:<18} {:<10} {:<15} {}\n",
-            truncate(&item.id, 17),
+            &item.id,
             truncate(&item.display_name, 21),
             truncate(&item.image, 17),
             status,

@@ -8,8 +8,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    log_error,
-    utils::{LOCK_FILE, MANIFEST_FILE},
+    log_error, utils::{LOCK_FILE, MANIFEST_FILE},
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -117,6 +116,8 @@ impl Manifest {
         toml::from_str::<ManifestLock>(&content)
             .map_err(|e| log_error!("corrupted lockfile: {}", e))
     }
+
+
 
     pub fn create_container_id(&self) -> String {
         let sanitized: String = self

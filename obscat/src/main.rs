@@ -24,8 +24,8 @@ use crate::cli::cummon;
 use crate::daemon::deploy::{daemon_deploy, daemon_undeploy};
 use crate::daemon::image;
 use crate::daemon::internal;
-use crate::obscat_proto::container_service_client::ContainerServiceClient;
 use crate::obscat_proto::StreamLogsRequest;
+use crate::obscat_proto::container_service_client::ContainerServiceClient;
 use clap::Parser;
 use tonic::transport::Channel;
 
@@ -50,7 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         let channel = endpoint.connect().await.map_err(|e| {
             format!(
-            "Failed to connect obscat daemon\n\nensure the obscat daemon is started.\nError: {}",
+            "Failed to connect obscat daemon, ensure the obscat daemon is started, Error: {}",
             e
         )
         })?;
@@ -132,12 +132,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                             let _ = fs::remove_file(PID_FILE);
                             eprintln!("PID process {} not found, deleting PID file...", pid);
                         }
-                        Err(e) => eprintln!("Failed to killed obscatd daemon\nError: {}", e),
+                        Err(e) => eprintln!("Failed to killed obscatd daemon, Error: {}", e),
                     }
                 }
                 Err(_) => {
                     eprintln!(
-                        "Daemon obscatd is not running (PID file not found)\nTry: obscat daemon-start"
+                        "Daemon obscatd is not running (PID file not found), Try: obscat daemon-start"
                     );
                 }
             }
@@ -217,6 +217,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let client = client.as_mut().unwrap();
             if let Err(e) = internal::daemon_delete(client, &id).await {
                 eprintln!("failed to run task command delete\nError: {}", e)
+            }
+        }
+
+        Commands::Restart { id } => {
+            let client = client.as_mut().unwrap();
+            if let Err(e) = internal::daemon_restart(client, &id).await {
+                eprintln!("failed to run task command restart\nError: {}", e)
             }
         }
 
