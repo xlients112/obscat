@@ -5,11 +5,11 @@ set -eu
 # KONFIGURASI REPO & VERSI
 # ==========================================
 OBSCAT_REPO="xlients112/obscat"
-OBSCAT_VERSION="v0.2.0"
+OBSCAT_VERSION="v0.3.0"
 INSTALL_DIR="/usr/local/bin"
 
 echo "Obscat container engine binary installer"
-echo "VERSION: v0.1.2-pre-testes"
+echo "VERSION: ${OBSCAT_VERSION}"
 echo "read docs on github: https://github.com/${OBSCAT_REPO}"
 
 # ==========================================

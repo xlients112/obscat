@@ -1,10 +1,10 @@
 use std::{fs, path::Path};
 
 pub async fn cummon_version() -> Result<(), Box<dyn std::error::Error>> {
-    let obscat_version = "v0.2.5".to_string();
-    let obscatd_version = "v0.2.5".to_string();
+    let obscat_version = "v0.3.0".to_string();
+    let obscatd_version = "v0.3.0".to_string();
 
-    let status = "PRE-RELEASE".to_string();
+    let status = "Stable release".to_string();
     println!(
         "Obscat version: {}\ndaemon version: {}\nstatus: {}",
         obscat_version, obscatd_version, status
