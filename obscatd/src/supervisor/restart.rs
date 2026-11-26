@@ -22,6 +22,7 @@ pub async fn restart(container_id: &str) -> Result<(), Box<dyn Error + Send + Sy
     if is_deployment_lock(container_id)? {
         restart_deployment(container_id).await?;
     } else {
+        restart_container(container_id).await?;
     }
     Ok(())
 }
@@ -160,6 +161,8 @@ pub async fn restart_deployment(container_id: &str) -> Result<(), Box<dyn Error 
             }
             Err(e) => println!("Failed to get container PID\nError: {}", e),
         }
+    } else {
+        return Err(log_error!("Failed to create container.").into());
     }
 
     // start container
