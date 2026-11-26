@@ -1,5 +1,5 @@
 use crate::runtime::db::con::get_conn;
-use rusqlite::{params, Result};
+use rusqlite::{Result, params};
 
 pub fn save_deployment(id: &str, name: &str, version: &str) -> Result<()> {
     let conn = get_conn();
@@ -14,6 +14,7 @@ pub fn save_deployment(id: &str, name: &str, version: &str) -> Result<()> {
 pub fn save_service(
     id: &str,
     deployment_id: &str,
+    state: &str,
     service_name: &str,
     image: &str,
     ip_address: &str,
@@ -21,18 +22,25 @@ pub fn save_service(
 ) -> Result<()> {
     let conn = get_conn();
     conn.execute(
-        "INSERT INTO services (id, deployment_id, service_name, image, ip_address, port)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        params![id, deployment_id, service_name, image, ip_address, port],
+        "INSERT INTO services (id, deployment_id, state, service_name, image, ip_address, port)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![
+            id,
+            deployment_id,
+            state,
+            service_name,
+            image,
+            ip_address,
+            port
+        ],
     )?;
     Ok(())
 }
 
 pub fn get_services_by_deployment(deployment_id: &str) -> Result<Vec<(String, String, String)>> {
     let conn = get_conn();
-    let mut stmt = conn.prepare(
-        "SELECT id, ip_address, port FROM services WHERE deployment_id = ?1",
-    )?;
+    let mut stmt =
+        conn.prepare("SELECT id, ip_address, port FROM services WHERE deployment_id = ?1")?;
 
     let rows = stmt.query_map(params![deployment_id], |row| {
         Ok((
@@ -47,6 +55,9 @@ pub fn get_services_by_deployment(deployment_id: &str) -> Result<Vec<(String, St
 
 pub fn delete_deployment(deployment_id: &str) -> Result<()> {
     let conn = get_conn();
-    conn.execute("DELETE FROM deployments WHERE id = ?1", params![deployment_id])?;
+    conn.execute(
+        "DELETE FROM deployments WHERE id = ?1",
+        params![deployment_id],
+    )?;
     Ok(())
 }

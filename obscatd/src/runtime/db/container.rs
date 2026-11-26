@@ -1,11 +1,11 @@
 use crate::runtime::db::con::get_conn;
 use rusqlite::{Result, params};
 
-pub fn save(id: &str, name: &str, image: &str, ip: &str, port: &str) -> Result<()> {
+pub fn save(id: &str, state: &str, container_name: &str, image: &str, ip: &str, port: &str) -> Result<()> {
     let conn = get_conn();
     conn.execute(
-        "INSERT INTO containers (id, name, image, ip_address, port) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![id, name, image, ip, port],
+        "INSERT INTO containers (id, state, container_name, image, ip_address, port) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![id, state, container_name, image, ip, port],
     )?;
     Ok(())
 }

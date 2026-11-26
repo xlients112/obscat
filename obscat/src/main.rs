@@ -50,9 +50,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         let channel = endpoint.connect().await.map_err(|e| {
             format!(
-            "Failed to connect obscat daemon, ensure the obscat daemon is started, Error: {}",
-            e
-        )
+                "Failed to connect obscat daemon, ensure the obscat daemon is started, Error: {}",
+                e
+            )
         })?;
         let grpc_client = ContainerServiceClient::new(channel);
 
@@ -96,9 +96,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 }
             }
 
+            let log_file_path = "/var/log/obscatd/obscatd.log";
+            let stdout_file = std::fs::File::create(log_file_path)?;
+            let stderr_file = stdout_file.try_clone()?;
+
             if let Err(e) = Command::new("obscatd")
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
+                .stdout(Stdio::from(stdout_file))
+                .stderr(Stdio::from(stderr_file))
                 .spawn()
             {
                 eprintln!("Failed to starting daemon\nError: {}", e);
@@ -213,9 +217,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             }
         }
 
-        Commands::Delete { id } => {
+        Commands::Delete { path } => {
             let client = client.as_mut().unwrap();
-            if let Err(e) = internal::daemon_delete(client, &id).await {
+            if let Err(e) = internal::daemon_delete(client, &path).await {
                 eprintln!("failed to run task command delete\nError: {}", e)
             }
         }

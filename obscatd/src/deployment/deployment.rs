@@ -115,6 +115,7 @@ async fn deploy_service(
     container_id: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     log_info!("Preparing container network...");
+    let disered_state = "running";
 
     let service_net_config = NetworkConfig {
         mode: svc
@@ -178,6 +179,7 @@ async fn deploy_service(
     save_service(
         &container_id,
         &deployment_id,
+        &disered_state,
         &svc.name,
         &svc.config.image,
         &final_ip,

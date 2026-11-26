@@ -4,20 +4,25 @@ pub mod internal_proto {
 
 pub mod container;
 pub mod deployment;
-pub mod supervisor;
 pub mod grpcutils;
 pub mod runtime;
+pub mod supervisor;
 pub mod utils;
 // pub mod mod;
 
 use crate::container::create::{container_create, container_delete};
 use crate::deployment::deployment::{deploy, undeploy};
 use crate::internal_proto::{
-    CreateRequest, CreateResponse, DeleteRequest, DeleteResponse, DeployRequest, DeployResponse, KillRequest, KillResponse, ListRequest, ListResponse, RestartRequest, RestartResponse, RunRequest, RunResponse, StateRequest, StateResponse, StreamLogsRequest, StreamLogsResponse, UndeployRequest, UndeployResponse,
+    CreateRequest, CreateResponse, DeleteRequest, DeleteResponse, DeployRequest, DeployResponse,
+    KillRequest, KillResponse, ListRequest, ListResponse, RestartRequest, RestartResponse,
+    RunRequest, RunResponse, StateRequest, StateResponse, StreamLogsRequest, StreamLogsResponse,
+    UndeployRequest, UndeployResponse,
 };
 use crate::runtime::container_internal::{ContainerCli, run_worker_container};
+use crate::runtime::db::update_container_state;
 use crate::runtime::logging::{init_global_capture, subscribe_logs};
 use crate::runtime::{db, init, internal, network};
+use crate::supervisor::reconciliation::init_reconcile;
 use crate::supervisor::restart::restart;
 use clap::{Parser, Subcommand};
 use internal_proto::container_service_server::{ContainerService, ContainerServiceServer};
@@ -154,7 +159,7 @@ impl ContainerService for ObscatService {
     }
 
     // restart
-        async fn restart(
+    async fn restart(
         &self,
         request: Request<RestartRequest>,
     ) -> Result<Response<RestartResponse>, Status> {
@@ -183,6 +188,11 @@ impl ContainerService for ObscatService {
         tokio::spawn(async move {
             if let Err(e) = internal::container_start(&cid).await {
                 eprintln!("Gagal menjalankan task kontainer: {}", e);
+                return;
+            }
+
+            if let Err(e) = update_container_state(&cid, "running") {
+                eprintln!("Failed to save state, Error: {}", e);
             }
         })
         .await
@@ -202,7 +212,12 @@ impl ContainerService for ObscatService {
 
         tokio::spawn(async move {
             if let Err(e) = internal::runtime_kill(&cid, &sig).await {
-                eprintln!("Failed to kill container\nError: {}", e)
+                eprintln!("Failed to kill container\nError: {}", e);
+                return;
+            }
+
+            if let Err(e) = update_container_state(&cid, "stopped") {
+                eprintln!("Failed to save state, Error: {}", e);
             }
         })
         .await
@@ -248,7 +263,6 @@ impl ContainerService for ObscatService {
     }
 }
 
-
 fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let cli = AppCli::parse();
 
@@ -259,11 +273,10 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     // return tokio multi thread
     tokio::runtime::Builder::new_multi_thread()
-    .enable_all()
-    .build()?
-    .block_on(tokio_main())
+        .enable_all()
+        .build()?
+        .block_on(tokio_main())
 }
-
 
 async fn tokio_main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // debug capture
@@ -282,6 +295,10 @@ async fn tokio_main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     db::con::init_db("/var/lib/obscatd/state.db")
         .await
         .expect("Failed to initialized database SQLite");
+
+    if let Err(e) = init_reconcile().await {
+        eprintln!("Failed to init reconciliation container, Error: {}", e)
+    }
 
     // grpc server
     let addr = "0.0.0.0:5005".parse()?;

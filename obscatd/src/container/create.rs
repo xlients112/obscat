@@ -21,6 +21,7 @@ use crate::{
 pub async fn container_create(
     package_path: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let disered_state = "running";
     let package_dir = Path::new(package_path);
     let manifest = Manifest::container_load(package_dir)
         .await
@@ -121,6 +122,7 @@ pub async fn container_create(
     log_info!("Creating database for container {}", &container_id);
     db::container::save(
         &container_id,
+        &disered_state,
         &manifest.package.name,
         &manifest.container.image,
         &final_ip,

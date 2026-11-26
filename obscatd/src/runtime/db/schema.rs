@@ -15,6 +15,7 @@ pub fn create_tables(conn: &Connection) -> Result<()> {
         CREATE TABLE IF NOT EXISTS services (
             id TEXT PRIMARY KEY,
             deployment_id TEXT NOT NULL,
+            state TEXT NOT NULL,
             service_name TEXT NOT NULL,
             image TEXT NOT NULL,
             ip_address TEXT UNIQUE,
@@ -25,6 +26,7 @@ pub fn create_tables(conn: &Connection) -> Result<()> {
         -- 3. Tabel Container tunggal (dari obscat create)
         CREATE TABLE IF NOT EXISTS containers (
             id TEXT PRIMARY KEY,
+            state TEXT NOT NULL,
             container_name TEXT NOT NULL,
             image TEXT NOT NULL,
             ip_address TEXT UNIQUE,

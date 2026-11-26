@@ -12,6 +12,7 @@ pub struct DeploymentRecord {
 pub struct ServiceRecord {
     pub id: String,
     pub deployment_id: String,
+    pub state: String,
     pub service_name: String,
     pub image: String,
     pub ip_address: Option<String>,
@@ -21,6 +22,7 @@ pub struct ServiceRecord {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct  ContainerRecord {
     pub id: String,
+    pub state: String,
     pub container_name: String,
     pub image: String,
     pub ip_address: Option<String>,

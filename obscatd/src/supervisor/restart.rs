@@ -31,13 +31,18 @@ pub async fn restart(container_id: &str) -> Result<(), Box<dyn Error + Send + Sy
 pub async fn restart_deployment(container_id: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
     log_info!("Restarting your container with reading the cache manifest lock");
     let manifest = DeployManifest::load_deploy_lock(container_id)?;
-    let pkg = &manifest.frozen_manifest.package.name;
+    // let pkg = &manifest.frozen_manifest.package.name;
     let (_, svc) = manifest
         .frozen_manifest
         .service
         .iter()
-        .find(|(svc_name, _)| container_id.starts_with(&format!("{}-{}-", pkg, svc_name)))
-        .ok_or_else(|| log_error!("Service '{}' tidak ditemukan di lockfile", container_id))?;
+        .find(|(svc_name, _)| container_id.contains(svc_name.as_str()))
+        .ok_or_else(|| {
+            log_error!(
+                "Service untuk container '{}' tidak ditemukan di lockfile deployment",
+                container_id
+            )
+        })?;
 
     log_info!("Checking bundles folder..");
     let bundles = Path::new(BUNDLE_PATH).join(container_id);
@@ -50,34 +55,44 @@ pub async fn restart_deployment(container_id: &str) -> Result<(), Box<dyn Error 
     db::container::get_network(container_id)
         .map_err(|e| log_error!("failed to get database info, error: {}", e))?;
 
-    // kill contianer
-    log_info!("killing the container...");
-    let signal = &format!("SIGKILL").to_string();
-    if let Err(e) = runtime_kill(container_id, signal).await {
-        log_error!("Failed to kill container: {}", e);
+    let state_path = format!("{}/{}/state.json", YOUKI_ROOT, container_id);
+    let is_created = Path::new(&state_path).exists();
+
+    if is_created {
+        // kill contianer
+        log_info!("killing the container...");
+        let signal = &format!("SIGKILL").to_string();
+        if let Err(e) = runtime_kill(container_id, signal).await {
+            log_error!("Failed to kill container: {}", e);
+        } else {
+            log_info!("Container {} has been killed.", container_id);
+        }
+
+        // delete container
+        log_info!("Recreating container instance...");
+        let mut delete = container_cmd()?;
+        delete
+            .arg("--root")
+            .arg(YOUKI_ROOT)
+            .arg("delete")
+            .arg("--force")
+            .arg(container_id);
+
+        let output = delete.output().await?;
+        if !output.status.success() {
+            let err = String::from_utf8_lossy(&output.stderr);
+            return Err(log_error!(
+                "failed to delete container {}\nError: {}",
+                container_id,
+                err
+            )
+            .into());
+        }
     } else {
-        log_info!("Container {} has been killed.", container_id);
-    }
-
-    // delete container
-    log_info!("Recreating container instance...");
-    let mut delete = container_cmd()?;
-    delete
-        .arg("--root")
-        .arg(YOUKI_ROOT)
-        .arg("delete")
-        .arg("--force")
-        .arg(container_id);
-
-    let output = delete.output().await?;
-    if !output.status.success() {
-        let err = String::from_utf8_lossy(&output.stderr);
-        return Err(log_error!(
-            "failed to delete container {}\nError: {}",
-            container_id,
-            err
-        )
-        .into());
+        log_info!(
+            "Container {} is not created, Next to recreating container...",
+            container_id
+        );
     }
 
     // setup network
@@ -219,34 +234,44 @@ pub async fn restart_container(container_id: &str) -> Result<(), Box<dyn Error +
     db::container::get_network(container_id)
         .map_err(|e| log_error!("failed to get database info, error: {}", e))?;
 
-    // kill contianer
-    log_info!("killing the container...");
-    let signal = &format!("SIGKILL").to_string();
-    if let Err(e) = runtime_kill(container_id, signal).await {
-        log_error!("Container is not (Running) or is already stopped: {}", e);
+    let state_path = format!("{}/{}/state.json", YOUKI_ROOT, container_id);
+    let is_created = Path::new(&state_path).exists();
+
+    if is_created {
+        // kill contianer
+        log_info!("killing the container...");
+        let signal = &format!("SIGKILL").to_string();
+        if let Err(e) = runtime_kill(container_id, signal).await {
+            log_error!("Failed to kill container: {}", e);
+        } else {
+            log_info!("Container {} has been killed.", container_id);
+        }
+
+        // delete container
+        log_info!("Recreating container instance...");
+        let mut delete = container_cmd()?;
+        delete
+            .arg("--root")
+            .arg(YOUKI_ROOT)
+            .arg("delete")
+            .arg("--force")
+            .arg(container_id);
+
+        let output = delete.output().await?;
+        if !output.status.success() {
+            let err = String::from_utf8_lossy(&output.stderr);
+            return Err(log_error!(
+                "failed to delete container {}\nError: {}",
+                container_id,
+                err
+            )
+            .into());
+        }
     } else {
-        log_info!("Container {} has been killed.", container_id);
-    }
-
-    // delete container
-    log_info!("Recreating container instance...");
-    let mut delete = container_cmd()?;
-    delete
-        .arg("--root")
-        .arg(YOUKI_ROOT)
-        .arg("delete")
-        .arg("--force")
-        .arg(container_id);
-
-    let output = delete.output().await?;
-    if !output.status.success() {
-        let err = String::from_utf8_lossy(&output.stderr);
-        return Err(log_error!(
-            "failed to delete container {}\nError: {}",
-            container_id,
-            err
-        )
-        .into());
+        log_info!(
+            "Container {} is not created, Next to recreating container...",
+            container_id
+        );
     }
 
     // setup network

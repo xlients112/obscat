@@ -1,5 +1,7 @@
 use rusqlite::{Result, params};
 
+use crate::runtime::db::con::get_conn;
+
 pub mod con;
 pub mod container;
 pub mod deployment;
@@ -12,6 +14,47 @@ pub struct ContainerListItem {
     pub image: String,
     pub ip_address: String,
     pub port: String,
+}
+
+pub struct ReconciliationItem {
+    pub id: String,
+    pub state: String,
+}
+
+// update state
+pub fn update_container_state(container_id: &str, state: &str) -> Result<()> {
+    let conn = get_conn();
+    let rows_affected = conn.execute(
+        "UPDATE containers SET state = ?1 WHERE id = ?2",
+        params![state, container_id],
+    )?;
+
+    if rows_affected == 0 {
+        conn.execute(
+            "UPDATE services SET state = ?1 WHERE id = ?2",
+            params![state, container_id],
+        )?;
+    }
+
+    Ok(())
+}
+
+pub fn list_all_for_reconciliation() -> Result<Vec<ReconciliationItem>> {
+    let conn = con::get_conn();
+    let mut stmt = conn.prepare(
+        "SELECT id, state FROM services
+         UNION ALL
+         SELECT id, state FROM containers",
+    )?;
+
+    let rows = stmt.query_map([], |row| {
+        Ok(ReconciliationItem {
+            id: row.get(0)?,
+            state: row.get(1)?,
+        })
+    })?;
+
+    rows.collect()
 }
 
 pub fn list_all_items() -> Result<Vec<ContainerListItem>> {

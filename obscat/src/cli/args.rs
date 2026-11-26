@@ -47,7 +47,7 @@ pub enum Commands {
         path: String,
     },
     Delete {
-        id: String,
+        path: String,
     },
     Restart {
         id: String
